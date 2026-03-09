@@ -13,9 +13,12 @@ networks:
 
 services:
   workspace:
-    image: mcr.microsoft.com/devcontainers/python:3.11
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - ..:/workspaces:cached
+      - /var/run/docker.sock:/var/run/docker.sock
     command: sleep infinity
     networks:
       - ilerna_ia_big_data
