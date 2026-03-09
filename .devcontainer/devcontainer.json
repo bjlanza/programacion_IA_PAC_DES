@@ -3,11 +3,6 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "workspace",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-      "moby": false
-    }
-  },
   "customizations": {
     "vscode": {
       "extensions": [
@@ -30,7 +25,7 @@
       }
     }
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin && pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
   "postStartCommand": "bash .devcontainer/start.sh",
   "forwardPorts": [
     1883,
