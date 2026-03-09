@@ -1,17 +1,10 @@
 version: '3.8'
 
-x-logging: &default-logging
-  driver: "json-file"
-  options:
-    max-size: "10m"
-    max-file: "3"
-
 volumes:
   redpanda-data:
   influxdb-data:
   minio-data:
   grafana-data:
-
 
 networks:
   ilerna_ia_big_data:
@@ -29,7 +22,11 @@ services:
       - "8000:8000" # FastAPI
       - "8501:8501" # Streamlit
       - "8888:8888" # JupyterLab
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 1. Ingesta: MQTT
   mosquitto:
@@ -42,7 +39,11 @@ services:
       - ../config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 2. Ingesta intermedia: Redpanda (Kafka API)
   redpanda:
@@ -71,14 +72,18 @@ services:
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:
-      test: [ "CMD-SHELL", "rpk cluster health || exit 1" ]
+      test: ["CMD-SHELL", "rpk cluster health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 2b. Consola web para tópicos y mensajes de Redpanda
   redpanda-console:
@@ -94,13 +99,17 @@ services:
       KAFKA_BROKERS: "redpanda:29092"
       KAFKA_SCHEMAREGISTRY_ENABLED: "false"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview"]
       interval: 15s
       timeout: 5s
       retries: 5
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 3. Procesamiento: Apache Flink (JobManager)
   jobmanager:
@@ -118,14 +127,18 @@ services:
         rest.port: 8081
         rest.bind-address: 0.0.0.0
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8081/overview" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 3b. Procesamiento: Apache Flink (TaskManager)
   taskmanager:
@@ -144,7 +157,11 @@ services:
         taskmanager.memory.process.size: 768m
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 4. Almacenamiento Tiempo Real: InfluxDB
   influxdb:
@@ -163,14 +180,18 @@ services:
     volumes:
       - influxdb-data:/var/lib/influxdb2
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8086/ping" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 5. Almacenamiento Histórico: MinIO (S3)
   minio:
@@ -187,14 +208,18 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
     networks:
       - ilerna_ia_big_data
-    logging: *default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 6. Servicio UI / Monitorización: Grafana
   grafana:
@@ -214,4 +239,8 @@ services:
       - grafana-data:/var/lib/grafana
     networks:
       - ilerna_ia_big_data
-    logging: default-logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
