@@ -1,0 +1,34 @@
+# --- API y Web ---
+fastapi
+uvicorn
+python-multipart
+streamlit
+
+# --- Ciencia de Datos e IA ---
+pandas
+numpy
+scikit-learn
+duckdb
+pyarrow
+matplotlib
+plotly
+
+# --- Notebooks ---
+jupyterlab
+notebook
+
+# --- Mensajería e IoT ---
+paho-mqtt
+confluent-kafka
+
+# --- Almacenamiento ---
+influxdb-client
+minio
+boto3
+
+# --- Big Data Streaming ---
+apache-flink==1.18.1
+
+# --- Utilidades ---
+watchdog
+python-dotenv

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Base de datos y almacenamiento local
+data/
+*.parquet
+*.csv
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Docker / Devcontainers (ignorar datos persistentes si están dentro del proyecto, aunque en compose se usaron volúmenes nombrados, siempre es buena práctica)
+*-data/

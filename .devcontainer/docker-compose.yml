@@ -1,0 +1,217 @@
+version: '3.8'
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+volumes:
+  redpanda-data:
+  influxdb-data:
+  minio-data:
+  grafana-data:
+
+
+networks:
+  ilerna_ia_big_data:
+    driver: bridge
+
+services:
+  workspace:
+    image: mcr.microsoft.com/devcontainers/python:3.11
+    volumes:
+      - ..:/workspaces:cached
+    command: sleep infinity
+    networks:
+      - ilerna_ia_big_data
+    ports:
+      - "8000:8000" # FastAPI
+      - "8501:8501" # Streamlit
+      - "8888:8888" # JupyterLab
+    logging: *default-logging
+
+  # 1. Ingesta: MQTT
+  mosquitto:
+    image: eclipse-mosquitto:2
+    hostname: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ../config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 2. Ingesta intermedia: Redpanda (Kafka API)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    hostname: redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --smp
+      - "1"
+      - --memory
+      - "1G"
+      - --reserve-memory
+      - "0M"
+      - --overprovisioned
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:29092,OUTSIDE://redpanda:9092
+    ports:
+      - "9092:9092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: [ "CMD-SHELL", "rpk cluster health || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 2b. Consola web para tópicos y mensajes de Redpanda
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    hostname: redpanda-console
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: "redpanda:29092"
+      KAFKA_SCHEMAREGISTRY_ENABLED: "false"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 3. Procesamiento: Apache Flink (JobManager)
+  jobmanager:
+    image: flink:1.18.1-java11
+    hostname: jobmanager
+    restart: unless-stopped
+    ports:
+      - "8081:8081" # Flink WebUI
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        jobmanager.memory.process.size: 512m
+        rest.port: 8081
+        rest.bind-address: 0.0.0.0
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/overview" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 3b. Procesamiento: Apache Flink (TaskManager)
+  taskmanager:
+    image: flink:1.18.1-java11
+    hostname: taskmanager
+    restart: unless-stopped
+    depends_on:
+      jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 768m
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 4. Almacenamiento Tiempo Real: InfluxDB
+  influxdb:
+    image: influxdb:2
+    hostname: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=ilerna
+      - DOCKER_INFLUXDB_INIT_BUCKET=sensores
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=supersecrettoken
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8086/ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 5. Almacenamiento Histórico: MinIO (S3)
+  minio:
+    image: minio/minio:latest
+    hostname: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # WebUI Console
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=adminpassword
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - ilerna_ia_big_data
+    logging: *default-logging
+
+  # 6. Servicio UI / Monitorización: Grafana
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - ilerna_ia_big_data
+    logging: default-logging
