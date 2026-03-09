@@ -4,7 +4,7 @@
   "service": "workspace",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "customizations": {
     "vscode": {
@@ -30,18 +30,63 @@
   },
   "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
   "postStartCommand": "bash .devcontainer/start.sh",
-  "forwardPorts": [1883, 9092, 8080, 8081, 8086, 9000, 9001, 8000, 8501, 3000, 8888],
+  "forwardPorts": [
+    1883,
+    9092,
+    8080,
+    8081,
+    8086,
+    9000,
+    9001,
+    8000,
+    8501,
+    3000,
+    8888
+  ],
   "portsAttributes": {
-    "8501": { "label": "Streamlit (UI App)", "onAutoForward": "notify" },
-    "8000": { "label": "FastAPI (Backend API)", "onAutoForward": "notify" },
-    "3000": { "label": "Grafana (Dashboards)", "onAutoForward": "notify" },
-    "8888": { "label": "Jupyter Notebook", "onAutoForward": "notify" },
-    "8081": { "label": "Flink UI (Jobs Control)", "onAutoForward": "silent" },
-    "8080": { "label": "Redpanda Console (Topics UI)", "onAutoForward": "silent" },
-    "9001": { "label": "MinIO Console (Data Lake UI)", "onAutoForward": "silent" },
-    "8086": { "label": "InfluxDB UI", "onAutoForward": "silent" },
-    "1883": { "label": "MQTT Broker", "onAutoForward": "ignore" },
-    "9092": { "label": "Redpanda (Kafka API)", "onAutoForward": "ignore" },
-    "9000": { "label": "MinIO (S3 API)", "onAutoForward": "ignore" }
+    "8501": {
+      "label": "Streamlit (UI App)",
+      "onAutoForward": "notify"
+    },
+    "8000": {
+      "label": "FastAPI (Backend API)",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Grafana (Dashboards)",
+      "onAutoForward": "notify"
+    },
+    "8888": {
+      "label": "Jupyter Notebook",
+      "onAutoForward": "notify"
+    },
+    "8081": {
+      "label": "Flink UI (Jobs Control)",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "Redpanda Console (Topics UI)",
+      "onAutoForward": "silent"
+    },
+    "9001": {
+      "label": "MinIO Console (Data Lake UI)",
+      "onAutoForward": "silent"
+    },
+    "8086": {
+      "label": "InfluxDB UI",
+      "onAutoForward": "silent"
+    },
+    "1883": {
+      "label": "MQTT Broker",
+      "onAutoForward": "ignore"
+    },
+    "9092": {
+      "label": "Redpanda (Kafka API)",
+      "onAutoForward": "ignore"
+    },
+    "9000": {
+      "label": "MinIO (S3 API)",
+      "onAutoForward": "ignore"
+    }
   }
 }
