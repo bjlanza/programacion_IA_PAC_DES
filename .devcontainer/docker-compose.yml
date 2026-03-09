@@ -6,6 +6,7 @@ volumes:
   minio-data:
   grafana-data:
 
+
 networks:
   ilerna_ia_big_data:
     driver: bridge
@@ -72,7 +73,7 @@ services:
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:
-      test: ["CMD-SHELL", "rpk cluster health || exit 1"]
+      test: [ "CMD-SHELL", "rpk cluster health || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -99,7 +100,7 @@ services:
       KAFKA_BROKERS: "redpanda:29092"
       KAFKA_SCHEMAREGISTRY_ENABLED: "false"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview" ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -127,11 +128,11 @@ services:
         rest.port: 8081
         rest.bind-address: 0.0.0.0
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/overview" ]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 45s
     networks:
       - ilerna_ia_big_data
     logging:
@@ -146,8 +147,7 @@ services:
     hostname: taskmanager
     restart: unless-stopped
     depends_on:
-      jobmanager:
-        condition: service_healthy
+      - jobmanager
     command: taskmanager
     environment:
       - |
@@ -180,7 +180,7 @@ services:
     volumes:
       - influxdb-data:/var/lib/influxdb2
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8086/ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -208,7 +208,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 5
