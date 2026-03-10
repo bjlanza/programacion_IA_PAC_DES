@@ -30,15 +30,6 @@ fi
 # ── 2. Levantar contenedores ────────────────────────────────
 echo ">>> [2/4] Levantando contenedores (docker compose up -d)..."
 
-CONFLICT_PORTS="11883 19092 18080 18081 18086 19000 19001 13000 18000 18501 18888"
-for port in $CONFLICT_PORTS; do
-    CONT_ID=$(docker ps -q --filter "publish=$port")
-    if [ ! -z "$CONT_ID" ]; then
-        echo "    ⚠️  Liberando puerto $port (contenedor: $CONT_ID)..."
-        docker rm -f $CONT_ID >/dev/null 2>&1 || true
-    fi
-done
-
 
 docker compose -f "${COMPOSE_FILE}" down --remove-orphans 2>/dev/null || true
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
