@@ -27,14 +27,24 @@ else
   echo    "    Intentando continuar de todas formas..."
 fi
 
+
+
+
+
+
+
 # ── 2. Levantar contenedores ────────────────────────────────
 echo ">>> [2/4] Levantando contenedores (docker compose up -d)..."
+
 docker compose -f "${COMPOSE_FILE}" down --remove-orphans 2>/dev/null || true
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
 # Limpiar contenedores huérfanos con nombre fijo (evita conflictos en Rebuild)
 echo ">>> Limpiando contenedores huérfanos..."
 docker rm -f flink-jobmanager flink-taskmanager 2>/dev/null || true
+# Liberar puertos ocupados por contenedores muertos/parados
+docker container prune -f 2>/dev/null || true
+echo "    ✅ Entorno limpio"
 
 # ── 3. Esperar a servicios con healthcheck ──────────────────
 echo ">>> [3/4] Esperando a que los servicios críticos estén healthy..."
