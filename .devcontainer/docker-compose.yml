@@ -17,6 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: unless-stopped
     volumes:
       - ..:/workspaces:cached
       - /var/run/docker.sock:/var/run/docker.sock
@@ -52,7 +53,7 @@ services:
 
   # 2. Ingesta intermedia: Redpanda (Kafka API)
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
+    image: docker.redpanda.com/redpandadata/redpanda:v25.3.10
     hostname: redpanda
     restart: unless-stopped
     command:
@@ -77,7 +78,7 @@ services:
     volumes:
       - redpanda-data:/var/lib/redpanda/data
     healthcheck:
-      test: [ "CMD-SHELL", "rpk cluster health || exit 1" ]
+      test: ["CMD-SHELL", "rpk cluster health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -92,7 +93,7 @@ services:
 
   # 2b. Consola web para tópicos y mensajes de Redpanda
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:latest
+    image: docker.redpanda.com/redpandadata/console:v3.5.3
     hostname: redpanda-console
     restart: unless-stopped
     depends_on:
@@ -104,7 +105,7 @@ services:
       KAFKA_BROKERS: "redpanda:29092"
       KAFKA_SCHEMAREGISTRY_ENABLED: "false"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/cluster/overview"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -195,7 +196,7 @@ services:
     volumes:
       - influxdb-data:/var/lib/influxdb2
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8086/ping" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -210,7 +211,7 @@ services:
 
   # 5. Almacenamiento Histórico: MinIO (S3)
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2026-02-07T07-43-34Z
     hostname: minio
     restart: unless-stopped
     ports:
@@ -223,7 +224,7 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -238,7 +239,7 @@ services:
 
   # 6. Servicio UI / Monitorización: Grafana
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:12.2.7
     hostname: grafana
     restart: unless-stopped
     depends_on:

@@ -31,15 +31,13 @@ fi
 echo ">>> [2/4] Levantando contenedores (docker compose up -d)..."
 
 
-docker compose -f "${COMPOSE_FILE}" down --remove-orphans 2>/dev/null || true
-docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
-
-# Limpiar contenedores huérfanos con nombre fijo (evita conflictos en Rebuild)
-echo ">>> Limpiando contenedores huérfanos..."
-docker rm -f flink-jobmanager flink-taskmanager 2>/dev/null || true
-# Liberar puertos ocupados por contenedores muertos/parados
+# Parar y limpiar contenedores/puertos fantasma (idempotente)
+echo ">>> Limpiando estado anterior..."
+docker compose -f "${COMPOSE_FILE}" down --remove-orphans --timeout 10 2>/dev/null || true
 docker container prune -f 2>/dev/null || true
 echo "    ✅ Entorno limpio"
+
+docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
 # ── 3. Esperar a servicios con healthcheck ──────────────────
 echo ">>> [3/4] Esperando a que los servicios críticos estén healthy..."
@@ -108,13 +106,13 @@ echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo -e "║  ${GREEN}✅ Entorno listo${NC}                                    ║"
 echo "╠══════════════════════════════════════════════════════╣"
-echo -e "║  ${RED}🔴${NC} Redpanda Console  → http://localhost:8080        ║"
-echo -e "║  ${YELLOW}🟠${NC} Flink UI          → http://localhost:18081        ║"
-echo -e "║  ${YELLOW}🟡${NC} InfluxDB UI       → http://localhost:8086        ║"
-echo -e "║  ${GREEN}🟢${NC} MinIO Console     → http://localhost:9001        ║"
-echo -e "║  ${CYAN}🔵${NC} Grafana           → http://localhost:3000        ║"
-echo    "║  ⚪ FastAPI           → http://localhost:8000        ║"
-echo    "║  ⚪ Streamlit         → http://localhost:8501        ║"
-echo    "║  ⚪ Jupyter           → http://localhost:8888        ║"
+echo -e "║  ${RED}🔴${NC} Redpanda Console  → http://localhost:18080       ║"
+echo -e "║  ${YELLOW}🟠${NC} Flink UI          → http://localhost:18081       ║"
+echo -e "║  ${YELLOW}🟡${NC} InfluxDB UI       → http://localhost:18086       ║"
+echo -e "║  ${GREEN}🟢${NC} MinIO Console     → http://localhost:19001       ║"
+echo -e "║  ${CYAN}🔵${NC} Grafana           → http://localhost:13000       ║"
+echo    "║  ⚪ FastAPI           → http://localhost:18000       ║"
+echo    "║  ⚪ Streamlit         → http://localhost:18501       ║"
+echo    "║  ⚪ Jupyter           → http://localhost:18888       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
