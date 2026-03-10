@@ -51,10 +51,10 @@ for SERVICE in "${SERVICES[@]}"; do
   echo -n "    Esperando ${SERVICE} "
   ELAPSED=0
 
-  # Esperar a que el contenedor exista
+  # Esperar a que el contenedor exista (busca por label, independiente del project name)
   CONTAINER_ID=""
   while [[ -z "${CONTAINER_ID}" && "${ELAPSED}" -lt "${TIMEOUT}" ]]; do
-    CONTAINER_ID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${SERVICE}" 2>/dev/null || true)"
+    CONTAINER_ID="$(docker ps -q --filter "label=com.docker.compose.service=${SERVICE}" 2>/dev/null | head -1 || true)"
     if [[ -z "${CONTAINER_ID}" ]]; then
       echo -n "."
       sleep 2
@@ -103,7 +103,7 @@ done
 # ── 4. Estado final ─────────────────────────────────────────
 echo ""
 echo ">>> [4/4] Estado final de los contenedores:"
-docker compose -f "${COMPOSE_FILE}" ps
+docker ps --filter "label=com.docker.compose.project" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
