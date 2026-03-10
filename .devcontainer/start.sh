@@ -31,13 +31,16 @@ fi
 echo ">>> [2/4] Levantando contenedores (docker compose up -d)..."
 
 
-# Parar y limpiar contenedores/puertos fantasma (idempotente)
-echo ">>> Limpiando estado anterior..."
-docker compose -f "${COMPOSE_FILE}" down --remove-orphans --timeout 10 2>/dev/null || true
-docker container prune -f 2>/dev/null || true
-echo "    ✅ Entorno limpio"
-
-docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
+# Si los contenedores ya están corriendo (gestionados por Codespaces), no relanzar
+if docker ps --filter "name=redpanda" --filter "status=running" -q 2>/dev/null | grep -q .; then
+  echo "    ℹ️  Contenedores ya activos (gestionados por Codespaces), saltando start..."
+else
+  echo ">>> Limpiando estado anterior..."
+  docker compose -f "${COMPOSE_FILE}" down --remove-orphans --timeout 10 2>/dev/null || true
+  docker container prune -f 2>/dev/null || true
+  echo "    ✅ Entorno limpio"
+  docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
+fi
 
 # ── 3. Esperar a servicios con healthcheck ──────────────────
 echo ">>> [3/4] Esperando a que los servicios críticos estén healthy..."
