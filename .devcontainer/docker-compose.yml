@@ -118,26 +118,59 @@ services:
   # 3. Procesamiento: Apache Flink (JobManager)
   # 3a. Procesamiento: Apache Flink (JobManager)
   jobmanager:
-    image: flink:1.18.1-java11
+    image: flink:1.18.1-scala_2.12-java11
     hostname: jobmanager
     container_name: flink-jobmanager
     restart: unless-stopped
     ports:
-      - "18081:8081" # Flink WebUI (Cambiado a 18081 para evitar conflictos)
+      - "18081:8081"
     command: jobmanager
     environment:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        jobmanager.memory.process.size: 512m
+        jobmanager.memory.process.size: 1024m
         rest.port: 8081
         rest.bind-address: 0.0.0.0
+    volumes:
+      - ../jobs:/opt/flink/jobs
     healthcheck:
-      # Usamos bash/tcp porque la imagen oficial de Flink NO tiene curl ni wget
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && echo -e 'GET /overview HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3"]
-      interval: 15s
+      test: ["CMD", "pgrep", "-f", "jobmanager"]
+      interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3
+      start_period: 60s
+    networks:
+      - ilerna_ia_big_data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 3b. Procesamiento: Apache Flink (TaskManager)
+  taskmanager:
+    image: flink:1.18.1-scala_2.12-java11
+    hostname: taskmanager
+    container_name: flink-taskmanager
+    restart: unless-stopped
+    depends_on:
+      jobmanager:
+        condition: service_healthy
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 2
+        taskmanager.memory.process.size: 1024m
+    volumes:
+      - ../jobs:/opt/flink/jobs
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "taskmanager"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
       start_period: 30s
     networks:
       - ilerna_ia_big_data
@@ -146,34 +179,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    volumes:
-      - ../jobs:/opt/flink/jobs
-
-  # 3b. Procesamiento: Apache Flink (TaskManager)
-  taskmanager:
-    image: flink:1.18.1-java11
-    hostname: taskmanager
-    container_name: flink-taskmanager
-    restart: unless-stopped
-    depends_on:
-      jobmanager:
-        condition: service_started # Esperamos a que arranque, no a que esté healthy (más rápido)
-    command: taskmanager
-    environment:
-      - |
-        FLINK_PROPERTIES=
-        jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 2
-        taskmanager.memory.process.size: 768m
-    networks:
-      - ilerna_ia_big_data
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    volumes:
-      - ../jobs:/opt/flink/jobs
 
   # 4. Almacenamiento Tiempo Real: InfluxDB
   influxdb:
