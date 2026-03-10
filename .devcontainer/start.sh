@@ -63,9 +63,8 @@ for SERVICE in "${SERVICES[@]}"; do
   done
 
   if [[ -z "${CONTAINER_ID}" ]]; then
-    echo -e "\n${RED}    ❌ No se encontró el contenedor '${SERVICE}' tras ${TIMEOUT}s${NC}"
-    echo    "    Revisa: docker compose -f ${COMPOSE_FILE} logs ${SERVICE}"
-    exit 1
+    echo -e "\n${YELLOW}    ⚠️  Contenedor '${SERVICE}' no encontrado tras ${TIMEOUT}s (Codespaces aún arrancando)${NC}"
+    continue
   fi
 
   # Esperar a healthy
@@ -79,15 +78,13 @@ for SERVICE in "${SERVICES[@]}"; do
     fi
 
     if [[ "${HEALTH}" == "unhealthy" ]]; then
-      echo -e "\n${RED}    ❌ ${SERVICE} está unhealthy${NC}"
-      echo    "    Logs: docker compose -f ${COMPOSE_FILE} logs --tail=100 ${SERVICE}"
-      exit 1
+      echo -e "\n${YELLOW}    ⚠️  ${SERVICE} está unhealthy — revisa: docker logs \$(docker ps -qf label=com.docker.compose.service=${SERVICE})${NC}"
+      break
     fi
 
     if [[ "${ELAPSED}" -ge "${TIMEOUT}" ]]; then
       echo -e "\n${YELLOW}    ⚠️  TIMEOUT: ${SERVICE} no alcanzó healthy en ${TIMEOUT}s${NC}"
-      echo    "    Revisa: docker compose -f ${COMPOSE_FILE} logs ${SERVICE}"
-      exit 1
+      break
     fi
 
     echo -n "."
