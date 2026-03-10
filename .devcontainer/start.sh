@@ -100,7 +100,7 @@ echo "╔═══════════════════════�
 echo -e "║  ${GREEN}✅ Entorno listo${NC}                                    ║"
 echo "╠══════════════════════════════════════════════════════╣"
 echo -e "║  ${RED}🔴${NC} Redpanda Console  → http://localhost:8080        ║"
-echo -e "║  ${YELLOW}🟠${NC} Flink UI          → http://localhost:8081        ║"
+echo -e "║  ${YELLOW}🟠${NC} Flink UI          → http://localhost:18081        ║"
 echo -e "║  ${YELLOW}🟡${NC} InfluxDB UI       → http://localhost:8086        ║"
 echo -e "║  ${GREEN}🟢${NC} MinIO Console     → http://localhost:9001        ║"
 echo -e "║  ${CYAN}🔵${NC} Grafana           → http://localhost:3000        ║"

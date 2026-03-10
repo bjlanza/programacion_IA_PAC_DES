@@ -116,12 +116,14 @@ services:
         max-file: "3"
 
   # 3. Procesamiento: Apache Flink (JobManager)
+  # 3a. Procesamiento: Apache Flink (JobManager)
   jobmanager:
     image: flink:1.18.1-java11
     hostname: jobmanager
+    container_name: flink-jobmanager
     restart: unless-stopped
     ports:
-      - "8081:8081" # Flink WebUI
+      - "18081:8081" # Flink WebUI (Cambiado a 18081 para evitar conflictos)
     command: jobmanager
     environment:
       - |
@@ -131,11 +133,12 @@ services:
         rest.port: 8081
         rest.bind-address: 0.0.0.0
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8081/overview" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 45s
+      # Usamos bash/tcp porque la imagen oficial de Flink NO tiene curl ni wget
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081 && echo -e 'GET /overview HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - ilerna_ia_big_data
     logging:
@@ -148,9 +151,11 @@ services:
   taskmanager:
     image: flink:1.18.1-java11
     hostname: taskmanager
+    container_name: flink-taskmanager
     restart: unless-stopped
     depends_on:
-      - jobmanager
+      jobmanager:
+        condition: service_started # Esperamos a que arranque, no a que esté healthy (más rápido)
     command: taskmanager
     environment:
       - |
