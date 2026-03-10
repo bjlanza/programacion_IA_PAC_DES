@@ -211,7 +211,7 @@ services:
 
   # 5. Almacenamiento Histórico: MinIO (S3)
   minio:
-    image: minio/minio:RELEASE.2026-02-07T07-43-34Z
+    image: minio/minio:latest
     hostname: minio
     restart: unless-stopped
     ports:

@@ -30,6 +30,7 @@
   },
   "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
   "postStartCommand": "bash .devcontainer/start.sh",
+  "autoForwardPorts": false,
   "forwardPorts": [
     11883,
     19092,
