@@ -120,7 +120,6 @@ services:
   jobmanager:
     image: flink:1.18.1-scala_2.12-java11
     hostname: jobmanager
-    container_name: flink-jobmanager
     restart: unless-stopped
     ports:
       - "18081:8081"
@@ -152,7 +151,6 @@ services:
   taskmanager:
     image: flink:1.18.1-scala_2.12-java11
     hostname: taskmanager
-    container_name: flink-taskmanager
     restart: unless-stopped
     depends_on:
       jobmanager:
