@@ -146,6 +146,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - ../jobs:/opt/flink/jobs
 
   # 3b. Procesamiento: Apache Flink (TaskManager)
   taskmanager:
@@ -170,6 +172,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - ../jobs:/opt/flink/jobs
 
   # 4. Almacenamiento Tiempo Real: InfluxDB
   influxdb:
