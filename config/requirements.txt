@@ -1,3 +1,7 @@
+# --- Forzar versiones compatibles con Python 3.11 (ANTES de Flink) ---
+numpy>=1.24.3,<2.0.0
+Cython>=0.29.33
+
 # --- API y Web ---
 fastapi
 uvicorn
@@ -6,7 +10,6 @@ streamlit
 
 # --- Ciencia de Datos e IA ---
 pandas
-numpy
 scikit-learn
 duckdb
 pyarrow

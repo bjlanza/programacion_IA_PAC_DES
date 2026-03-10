@@ -28,7 +28,7 @@
       }
     }
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
+  "postCreateCommand": "pip install --upgrade pip && pip install 'numpy>=1.24.3,<2.0.0' && pip install --no-build-isolation -r config/requirements.txt && chmod +x .devcontainer/start.sh",
   "postStartCommand": "bash .devcontainer/start.sh",
   "forwardPorts": [
     1883,
