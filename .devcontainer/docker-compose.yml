@@ -23,9 +23,9 @@ services:
     networks:
       - ilerna_ia_big_data
     ports:
-      - "8000:8000" # FastAPI
-      - "8501:8501" # Streamlit
-      - "8888:8888" # JupyterLab
+      - "18000:8000" # FastAPI
+      - "18501:8501" # Streamlit
+      - "18888:8888" # JupyterLab
     logging:
       driver: "json-file"
       options:
@@ -98,7 +98,7 @@ services:
       redpanda:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "18080:8080"
     environment:
       KAFKA_BROKERS: "redpanda:29092"
       KAFKA_SCHEMAREGISTRY_ENABLED: "false"
@@ -184,7 +184,7 @@ services:
     hostname: influxdb
     restart: unless-stopped
     ports:
-      - "8086:8086"
+      - "18086:8086"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
@@ -214,8 +214,8 @@ services:
     hostname: minio
     restart: unless-stopped
     ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # WebUI Console
+      - "19000:9000" # S3 API
+      - "19001:9001" # WebUI Console
     environment:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=adminpassword
@@ -245,7 +245,7 @@ services:
       influxdb:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "13000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
