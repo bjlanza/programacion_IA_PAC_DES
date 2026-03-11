@@ -100,45 +100,29 @@ docker compose -f .devcontainer/docker-compose.yml up -d
 
 ### Paso 1 — Preparar Flink
 
-
-```bash
-# Instalar JARs en jobmanager Y taskmanager
-for SVC in jobmanager taskmanager; do
-  docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
-    bash /opt/flink/jobs/download_flink_jars.sh
-done
-
-# Reiniciar ambos para cargar el plugin S3
-docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
-docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
-sleep 20   # esperar a que el cluster esté listo
-```
+Automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs al arrancar.
 
 ### Paso 2 — Crear los topics Kafka
 
+Automático — `start.sh` crea los topics al arrancar. Para verificar:
+
 ```bash
 RP=$(docker ps -qf "label=com.docker.compose.service=redpanda")
-docker exec $RP rpk topic create sensors_raw      -p 1 -r 1
-docker exec $RP rpk topic create sensors_clean    -p 1 -r 1
-docker exec $RP rpk topic create sensors_invalid  -p 1 -r 1
-docker exec $RP rpk topic create sensors_verified -p 1 -r 1
-
-# Verificar
 docker exec $RP rpk topic list
 ```
 
 ### Paso 3 — Crear bucket MinIO para el cold path
 
+Automático — `start.sh` crea el bucket `datalake` al arrancar. Para verificar:
+
 ```bash
 python3 -c "
 from minio import Minio
-c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
-for b in ['datalake', 'datalake/clean']:
-    if not c.bucket_exists('datalake'):
-        c.make_bucket('datalake')
-        print('Bucket datalake creado')
-    else:
-        print('Bucket datalake ya existe')
+c = Minio('minio:9000', access_key='admin', secret_key='adminpassword', secure=False)
+if c.bucket_exists('datalake'):
+    print('Bucket datalake existe')
+else:
+    print('Bucket datalake NO existe')
 "
 ```
 
@@ -178,10 +162,10 @@ python src/01_ingestion/mqtt_to_redpanda_bridge.py
 python src/03_storage/kafka_to_minio.py
 
 # Terminal 4 — FastAPI (Hito 4)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.04_api.main:app --host 0.0.0.0 --port 18000 --reload
 
 # Terminal 5 — Dashboard Streamlit (Hito 4)
-streamlit run src/05_ui/app.py --server.port 8501
+streamlit run src/05_ui/app.py --server.port 18501
 ```
 
 ### Paso 6 — Entrenar el modelo de IA
@@ -655,13 +639,13 @@ unified = conn.execute("""
 
 ```bash
 JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
-# (Requiere plugin S3 configurado por download_flink_jars.sh)
+# Plugin S3 ya incluido en Dockerfile.jobmanager
 docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py
 
 # Verificar que se crean archivos en MinIO
 python3 -c "
 from minio import Minio
-c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
+c = Minio('minio:9000', access_key='admin', secret_key='adminpassword', secure=False)
 objects = list(c.list_objects('datalake', prefix='clean/', recursive=True))
 print(f'{len(objects)} archivos Parquet en MinIO')
 for o in objects[:5]:
