@@ -99,12 +99,41 @@ done
 
 # ── 4. Estado final ─────────────────────────────────────────
 echo ""
-echo ">>> [4/5] Estado final de los contenedores:"
+echo ">>> [4/6] Estado final de los contenedores:"
 docker ps --filter "label=com.docker.compose.project" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-# ── 5. Auto-lanzar jobs Flink ────────────────────────────────
+# ── 5. Preparar infraestructura de datos ────────────────────
 echo ""
-echo ">>> [5/5] Verificando jobs Flink..."
+echo ">>> [5/6] Preparando topics Kafka y bucket MinIO..."
+
+# Topics Redpanda
+RP_ID="$(docker ps -qf 'label=com.docker.compose.service=redpanda' 2>/dev/null | head -1 || true)"
+if [[ -n "${RP_ID}" ]]; then
+  for TOPIC in sensors_raw sensors_clean sensors_invalid sensors_verified; do
+    docker exec "${RP_ID}" rpk topic create "${TOPIC}" -p 1 -r 1 2>/dev/null \
+      && echo -e "    ${GREEN}✅ Topic ${TOPIC} creado${NC}" \
+      || echo -e "    ${YELLOW}ℹ️  Topic ${TOPIC} ya existe${NC}"
+  done
+fi
+
+# Bucket MinIO
+python3 -c "
+from minio import Minio
+import sys
+try:
+    c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
+    if not c.bucket_exists('datalake'):
+        c.make_bucket('datalake')
+        print('    \033[32m✅ Bucket datalake creado\033[0m')
+    else:
+        print('    \033[33mℹ️  Bucket datalake ya existe\033[0m')
+except Exception as e:
+    print(f'    \033[33m⚠️  MinIO no disponible aún: {e}\033[0m', file=sys.stderr)
+" 2>&1 || true
+
+# ── 6. Auto-lanzar jobs Flink ────────────────────────────────
+echo ""
+echo ">>> [6/6] Verificando jobs Flink..."
 
 JM_ID="$(docker ps -qf 'label=com.docker.compose.service=jobmanager' 2>/dev/null | head -1 || true)"
 
