@@ -100,9 +100,6 @@ docker compose -f .devcontainer/docker-compose.yml up -d
 
 ### Paso 1 — Preparar Flink
 
-> **Desde el siguiente rebuild del Codespace**: automático. El `Dockerfile.jobmanager` incluye Python 3, el JAR Kafka SQL Connector y el plugin S3/MinIO. `start.sh` lanza los jobs automáticamente al arrancar.
->
-> **Primera vez en la sesión actual** (sin rebuild): instalar en **ambos** contenedores (jobmanager ejecuta el job; taskmanager ejecuta las tareas).
 
 ```bash
 # Instalar JARs en jobmanager Y taskmanager

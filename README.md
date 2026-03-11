@@ -125,17 +125,7 @@ bash tests/test_connectivity.sh
 
 ### 3. Preparar Flink
 
-> **En nuevos Codespaces** (tras rebuild): automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs automáticamente.
->
-> **En la sesión actual** (sin rebuild): ejecutar una sola vez en ambos contenedores:
-> ```bash
-> for SVC in jobmanager taskmanager; do
->   docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
->     bash /opt/flink/jobs/download_flink_jars.sh
-> done
-> docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
-> docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
-> ```
+Automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs al arrancar.
 
 ### 4. Arrancar el pipeline completo
 

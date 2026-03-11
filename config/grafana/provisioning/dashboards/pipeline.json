@@ -1,0 +1,297 @@
+{
+  "uid": "ilerna-smartindustry",
+  "title": "ILERNA Smart-Industry — Telemetría IoT",
+  "tags": ["iot", "temperatura", "flink", "influxdb"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-30m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Máquinas activas",
+      "description": "Dispositivos con datos en los últimos 5 minutos",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "blue"},
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"avg_temp_c\")\n  |> group(columns: [\"device_id\"])\n  |> last()\n  |> group()\n  |> count()",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Máquinas en alerta (> 80 °C)",
+      "description": "Máquinas cuya temperatura media superó el umbral de alerta",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"alert\")\n  |> group(columns: [\"device_id\"])\n  |> last()\n  |> filter(fn: (r) => r._value == 1)\n  |> group()\n  |> count()",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Temperatura media global (°C)",
+      "description": "Media de avg_temp_c de todas las máquinas en los últimos 5 min",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"avg_temp_c\")\n  |> group(columns: [\"device_id\"])\n  |> last()\n  |> group()\n  |> mean(column: \"_value\")",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Temperatura máxima global (°C)",
+      "description": "Pico de max_temp_c registrado entre todas las máquinas en los últimos 5 min",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"max_temp_c\")\n  |> group(columns: [\"device_id\"])\n  |> last()\n  |> group()\n  |> max(column: \"_value\")",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Temperatura media por máquina (°C)",
+      "description": "Evolución temporal de avg_temp_c por device_id. Línea roja = umbral de alerta 80 °C.",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 9},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "thresholdsStyle": {"mode": "line"}
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"avg_temp_c\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"avg_temp_c\")",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "gauge",
+      "title": "Temperatura actual por máquina (°C)",
+      "description": "Último valor de avg_temp_c por dispositivo. Verde < 70, amarillo 70-80, rojo > 80.",
+      "gridPos": {"x": 0, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "min": 0,
+          "max": 120,
+          "displayName": "${__field.labels.device_id}",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 80}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"avg_temp_c\")\n  |> group(columns: [\"device_id\"])\n  |> last()",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Estado de máquinas",
+      "description": "Última lectura de temperatura media por máquina con estado de alerta calculado.",
+      "gridPos": {"x": 12, "y": 13, "w": 12, "h": 8},
+      "datasource": {"type": "influxdb", "uid": "influxdb"},
+      "options": {
+        "footer": {"show": false},
+        "sortBy": [{"displayName": "Maquina", "desc": false}]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"align": "auto", "displayMode": "auto"}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "alert_status"},
+            "properties": [
+              {"id": "displayName", "value": "Estado"},
+              {"id": "custom.displayMode", "value": "color-text"},
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ALERTA": {"color": "red", "index": 1, "text": "ALERTA"},
+                      "OK": {"color": "green", "index": 0, "text": "OK"}
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Temp. Media (C)"},
+            "properties": [
+              {"id": "unit", "value": "celsius"},
+              {"id": "decimals", "value": 1},
+              {"id": "custom.displayMode", "value": "color-background"},
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"color": "green", "value": null},
+                    {"color": "yellow", "value": 70},
+                    {"color": "red", "value": 80}
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "Ultima lectura"},
+            "properties": [
+              {"id": "unit", "value": "dateTimeAsIso"}
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {"type": "influxdb", "uid": "influxdb"},
+          "query": "from(bucket: \"sensores\")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == \"machine_stats\" and r._field == \"avg_temp_c\")\n  |> group(columns: [\"device_id\"])\n  |> last()\n  |> map(fn: (r) => ({r with alert_status: if r._value > 80.0 then \"ALERTA\" else \"OK\"}))\n  |> keep(columns: [\"device_id\", \"_value\", \"_time\", \"alert_status\"])\n  |> rename(columns: {device_id: \"Maquina\", _value: \"Temp. Media (C)\", _time: \"Ultima lectura\"})\n  |> sort(columns: [\"Maquina\"])",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

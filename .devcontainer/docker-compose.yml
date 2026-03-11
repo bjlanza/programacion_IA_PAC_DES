@@ -122,7 +122,7 @@ services:
       - "18081:8081"
     command: jobmanager
     environment:
-      - PYTHONPATH=/opt/flink/opt/python/pyflink.zip
+      - PYTHONPATH=/opt/flink/opt/python/pyflink_pkg
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
@@ -157,7 +157,7 @@ services:
         condition: service_healthy
     command: taskmanager
     environment:
-      - PYTHONPATH=/opt/flink/opt/python/pyflink.zip
+      - PYTHONPATH=/opt/flink/opt/python/pyflink_pkg
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
@@ -253,6 +253,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - grafana-data:/var/lib/grafana
+      - ../config/grafana/provisioning:/etc/grafana/provisioning
     networks:
       - ilerna_ia_big_data
     logging:
