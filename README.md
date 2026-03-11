@@ -92,8 +92,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 ├── jobs/
 │   ├── flink_normalization_job.py      # Hito 2: Table API + UDF to_celsius
 │   ├── flink_analytics_job.py          # Hito 3: Tumble Window + alertas InfluxDB
-│   ├── anomaly_detector.py             # Job alternativo DataStream API
-│   └── download_flink_jars.sh          # Descarga conector Kafka para Flink
+│   └── anomaly_detector.py             # Job alternativo DataStream API
 │
 ├── notebooks/
 │   └── 01_exploracion_datos.ipynb      # Exploración con Plotly + InfluxDB
@@ -139,20 +138,14 @@ python src/01_ingestion/mqtt_to_redpanda_bridge.py
 # Terminal 3 — Archivador histórico → MinIO
 python src/03_storage/kafka_to_minio.py
 
-# Flink: Normalización (Hito 2)
-docker exec $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  flink run -py /opt/flink/jobs/flink_normalization_job.py
-
-# Flink: Analítica y alertas (Hito 3)
-docker exec $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  flink run -py /opt/flink/jobs/flink_analytics_job.py
-
 # Terminal 4 — FastAPI (Hito 4)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.04_api.main:app --host 0.0.0.0 --port 18000 --reload
 
 # Terminal 5 — Dashboard (Hito 4)
-streamlit run src/05_ui/app.py --server.port 8501
+streamlit run src/05_ui/app.py --server.port 18501
 ```
+
+> **Nota:** Los jobs Flink (normalización, analítica, cold path) y los topics Kafka y bucket MinIO se lanzan automáticamente en `start.sh` al arrancar el Codespace.
 
 ### 5. Acceder a las UIs
 
