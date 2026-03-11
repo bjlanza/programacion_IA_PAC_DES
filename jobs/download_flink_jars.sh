@@ -38,7 +38,9 @@ echo ""
 
 # ── 1. Kafka SQL Connector ────────────────────────────────────
 echo ">>> [1/3] Kafka SQL Connector (para sensors_raw, sensors_clean, etc.)"
-KAFKA_VERSION="3.1.0-${FLINK_VERSION}"
+# Los conectores Flink usan versión menor (1.18), no la patch (1.18.1)
+FLINK_MINOR="$(echo ${FLINK_VERSION} | cut -d. -f1-2)"
+KAFKA_VERSION="3.1.0-${FLINK_MINOR}"
 KAFKA_JAR="flink-sql-connector-kafka-${KAFKA_VERSION}.jar"
 download_if_missing "Kafka connector" \
   "https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/${KAFKA_VERSION}/${KAFKA_JAR}" \
