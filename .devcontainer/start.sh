@@ -121,7 +121,7 @@ python3 -c "
 from minio import Minio
 import sys
 try:
-    c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
+    c = Minio('minio:9000', access_key='admin', secret_key='adminpassword', secure=False)
     if not c.bucket_exists('datalake'):
         c.make_bucket('datalake')
         print('    \033[32m✅ Bucket datalake creado\033[0m')
