@@ -8,10 +8,10 @@ Uso:
   python src/01_ingestion/mqtt_to_kafka.py
 
 Variables de entorno (opcionales, sobrescriben defaults):
-  MQTT_HOST        (default: localhost)
-  MQTT_PORT        (default: 11883)
+  MQTT_HOST        (default: mosquitto)
+  MQTT_PORT        (default: 1883)
   MQTT_TOPIC       (default: sensores/raw)
-  KAFKA_BROKER     (default: localhost:19092)
+  KAFKA_BROKER     (default: redpanda:29092)
   KAFKA_TOPIC      (default: sensores_raw)
 """
 
@@ -26,11 +26,11 @@ from confluent_kafka import Producer, KafkaException
 from confluent_kafka.admin import AdminClient, NewTopic
 
 # ── Configuración ─────────────────────────────────────────────
-MQTT_HOST   = os.getenv("MQTT_HOST",    "localhost")
-MQTT_PORT   = int(os.getenv("MQTT_PORT", "11883"))
+MQTT_HOST   = os.getenv("MQTT_HOST",    "mosquitto")
+MQTT_PORT   = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC  = os.getenv("MQTT_TOPIC",   "sensores/raw")
 
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:19092")
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:29092")
 KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensores_raw")
 
 # Campos obligatorios en cada mensaje

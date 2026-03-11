@@ -28,6 +28,24 @@
       }
     }
   },
+  "remoteEnv": {
+    "MQTT_HOST": "mosquitto",
+    "MQTT_PORT": "1883",
+    "MQTT_TOPIC": "sensors/telemetry",
+    "KAFKA_BROKER": "redpanda:29092",
+    "KAFKA_BOOTSTRAP": "redpanda:29092",
+    "KAFKA_TOPIC": "sensors_raw",
+    "INFLUX_URL": "http://influxdb:8086",
+    "INFLUX_TOKEN": "supersecrettoken",
+    "INFLUX_ORG": "ilerna",
+    "INFLUX_BUCKET": "sensores",
+    "MINIO_ENDPOINT": "minio:9000",
+    "MINIO_ACCESS": "admin",
+    "MINIO_SECRET": "adminpassword",
+    "MINIO_BUCKET": "datalake",
+    "FASTAPI_URL": "http://localhost:8000",
+    "ALERT_THRESHOLD": "80.0"
+  },
   "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh",
   "postStartCommand": "bash .devcontainer/start.sh",
   "autoForwardPorts": false,

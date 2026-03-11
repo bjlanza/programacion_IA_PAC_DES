@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from influxdb_client import InfluxDBClient
 from pydantic import BaseModel
 
-from anomaly_model import detector
+from .anomaly_model import detector
 
 # ── Configuración ─────────────────────────────────────────────
 INFLUX_URL    = os.getenv("INFLUX_URL",    "http://influxdb:8086")

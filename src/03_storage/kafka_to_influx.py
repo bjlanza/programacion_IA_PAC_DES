@@ -28,11 +28,11 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
 # ── Configuración ─────────────────────────────────────────────
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:19092")
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:29092")
 KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensores_raw")
 KAFKA_GROUP  = os.getenv("KAFKA_GROUP",  "storage-influx")
 
-INFLUX_URL    = os.getenv("INFLUX_URL",    "http://localhost:18086")
+INFLUX_URL    = os.getenv("INFLUX_URL",    "http://influxdb:8086")
 INFLUX_TOKEN  = os.getenv("INFLUX_TOKEN",  "supersecrettoken")
 INFLUX_ORG    = os.getenv("INFLUX_ORG",    "ilerna")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "sensores")

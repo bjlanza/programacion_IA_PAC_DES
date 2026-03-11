@@ -11,30 +11,31 @@ Dependencias (todas ya en config/requirements.txt):
   paho-mqtt, confluent-kafka, influxdb-client, minio
 """
 
+import os
 import sys
 import time
 import json
 import uuid
 
 # ── Configuración ────────────────────────────────────────────
-MQTT_HOST       = "localhost"
-MQTT_PORT       = 11883
+MQTT_HOST       = os.getenv("MQTT_HOST",      "mosquitto")
+MQTT_PORT       = int(os.getenv("MQTT_PORT",  "1883"))
 MQTT_TOPIC      = "test/sensor"
 
-KAFKA_BROKER    = "localhost:19092"
+KAFKA_BROKER    = os.getenv("KAFKA_BROKER",   "redpanda:29092")
 KAFKA_TOPIC     = "test-flow"
 
-INFLUX_URL      = "http://localhost:18086"
-INFLUX_TOKEN    = "supersecrettoken"
-INFLUX_ORG      = "ilerna"
-INFLUX_BUCKET   = "sensores"
+INFLUX_URL      = os.getenv("INFLUX_URL",     "http://influxdb:8086")
+INFLUX_TOKEN    = os.getenv("INFLUX_TOKEN",   "supersecrettoken")
+INFLUX_ORG      = os.getenv("INFLUX_ORG",     "ilerna")
+INFLUX_BUCKET   = os.getenv("INFLUX_BUCKET",  "sensores")
 
-MINIO_ENDPOINT  = "localhost:19000"
-MINIO_ACCESS    = "admin"
-MINIO_SECRET    = "adminpassword"
+MINIO_ENDPOINT  = os.getenv("MINIO_ENDPOINT", "minio:9000")
+MINIO_ACCESS    = os.getenv("MINIO_ACCESS",   "admin")
+MINIO_SECRET    = os.getenv("MINIO_SECRET",   "adminpassword")
 MINIO_BUCKET    = "test-flow"
 
-GRAFANA_URL     = "http://localhost:13000"
+GRAFANA_URL     = "http://grafana:3000"
 GRAFANA_USER    = "admin"
 GRAFANA_PASS    = "admin"
 

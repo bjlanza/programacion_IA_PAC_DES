@@ -36,12 +36,12 @@ logging.basicConfig(
 log = logging.getLogger("mqtt-bridge")
 
 # ── Configuración ─────────────────────────────────────────────
-MQTT_HOST  = os.getenv("MQTT_HOST",  "localhost")
-MQTT_PORT  = int(os.getenv("MQTT_PORT",  "11883"))
+MQTT_HOST  = os.getenv("MQTT_HOST",  "mosquitto")
+MQTT_PORT  = int(os.getenv("MQTT_PORT",  "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "sensors/telemetry")
 MQTT_QOS   = int(os.getenv("MQTT_QOS",   "1"))
 
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:19092")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "redpanda:29092")
 KAFKA_TOPIC     = os.getenv("KAFKA_TOPIC",     "sensors_raw")
 KAFKA_KEY_FIELD = os.getenv("KAFKA_KEY_FIELD", "device_id")
 KAFKA_ACKS      = os.getenv("KAFKA_ACKS",      "all")

@@ -32,11 +32,11 @@ from minio import Minio
 from minio.error import S3Error
 
 # ── Configuración ─────────────────────────────────────────────
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:19092")
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:29092")
 KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensores_raw")
 KAFKA_GROUP  = os.getenv("KAFKA_GROUP",  "storage-minio")
 
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:19000")
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS   = os.getenv("MINIO_ACCESS",   "admin")
 MINIO_SECRET   = os.getenv("MINIO_SECRET",   "adminpassword")
 MINIO_BUCKET   = os.getenv("MINIO_BUCKET",   "datalake")

@@ -91,6 +91,21 @@ EOF
   echo -e "  ${GREEN}✅ Configuración S3 añadida a flink-conf.yaml${NC}"
 fi
 
+# ── 4. Python 3 (requerido por flink run -py) ─────────────────
+echo ""
+echo ">>> [4/4] Python 3 (necesario para PyFlink)"
+if command -v python3 &>/dev/null; then
+  echo -e "  ${YELLOW}⏭  Python3 ya instalado: $(python3 --version)${NC}"
+else
+  apt-get update -qq && apt-get install -y -q python3 python3-pip
+  echo -e "  ${GREEN}✅ Python3 instalado${NC}"
+fi
+# Asegurar que 'python' apunta a python3
+if ! command -v python &>/dev/null; then
+  ln -sf "$(command -v python3)" /usr/local/bin/python
+  echo -e "  ${GREEN}✅ Symlink python → python3 creado${NC}"
+fi
+
 # ── Resumen ───────────────────────────────────────────────────
 echo ""
 echo ">>> JARs en ${TARGET_LIB}:"

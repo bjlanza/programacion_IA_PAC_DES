@@ -40,8 +40,8 @@ logging.basicConfig(
 log = logging.getLogger("sensor-simulator")
 
 # ── Configuración ─────────────────────────────────────────────
-MQTT_HOST  = os.getenv("MQTT_HOST",  "localhost")
-MQTT_PORT  = int(os.getenv("MQTT_PORT", "11883"))
+MQTT_HOST  = os.getenv("MQTT_HOST",  "mosquitto")
+MQTT_PORT  = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "sensors/telemetry")
 
 MACHINE_PROFILES = {
