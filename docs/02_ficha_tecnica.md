@@ -110,13 +110,21 @@ Las siguientes diferencias entre la ficha de referencia y la implementación rea
 
 **Persistencia de datos**: Volúmenes Docker nombrados para Redpanda, InfluxDB, MinIO y Grafana. Los datos sobreviven reinicios de contenedores pero se pierden si se ejecuta `docker volume prune`.
 
-**Flink y Python**: El contenedor `flink:1.18.1-java11` necesita JARs descargados una vez:
+**Flink y Python**: El contenedor `flink:1.18.1-java11` necesita Python 3 y el JAR Kafka para ejecutar jobs PyFlink.
+
+**Desde el siguiente rebuild de Codespace**: automático — `Dockerfile.jobmanager` (`.devcontainer/`) pre-instala Python 3, el Kafka SQL Connector JAR y el plugin S3/MinIO en la imagen. Ambos contenedores (`jobmanager` y `taskmanager`) usan la misma imagen personalizada.
+
+**En la sesión actual** (sin rebuild): ejecutar una sola vez en AMBOS contenedores (jobmanager + taskmanager comparten la misma classpath):
 ```bash
-docker exec -it $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  bash /opt/flink/jobs/download_flink_jars.sh
-# Reiniciar jobmanager para cargar el plugin S3:
+for SVC in jobmanager taskmanager; do
+  docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
+    bash /opt/flink/jobs/download_flink_jars.sh
+done
 docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
+docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
 ```
+
+**Auto-lanzado de jobs Flink**: `start.sh` incluye un paso que lanza automáticamente los tres jobs Flink (`normalization`, `hash_verifier`, `analytics`) al arrancar el Codespace, si no hay jobs ya corriendo.
 
 ---
 

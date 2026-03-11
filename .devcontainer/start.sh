@@ -99,10 +99,76 @@ done
 
 # ── 4. Estado final ─────────────────────────────────────────
 echo ""
-echo ">>> [4/4] Estado final de los contenedores:"
+echo ">>> [4/5] Estado final de los contenedores:"
 docker ps --filter "label=com.docker.compose.project" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
+# ── 5. Auto-lanzar jobs Flink ────────────────────────────────
 echo ""
+echo ">>> [5/5] Verificando jobs Flink..."
+
+JM_ID="$(docker ps -qf 'label=com.docker.compose.service=jobmanager' 2>/dev/null | head -1 || true)"
+
+if [[ -n "${JM_ID}" ]]; then
+  # Contar jobs RUNNING en el cluster
+  RUNNING_JOBS=$(docker exec "${JM_ID}" bash -c \
+    "curl -s http://localhost:8081/jobs 2>/dev/null \
+     | python3 -c \"import sys,json; d=json.load(sys.stdin); print(len([j for j in d.get('jobs',[]) if j['status']=='RUNNING']))\" \
+     2>/dev/null || echo 0")
+
+  if [[ "${RUNNING_JOBS}" -gt 0 ]]; then
+    echo -e "    ${YELLOW}ℹ️  ${RUNNING_JOBS} job(s) ya corriendo en Flink — saltando lanzamiento${NC}"
+  else
+    echo "    🚀 Lanzando jobs Flink en segundo plano..."
+
+    FLINK_JOBS=(
+      "flink_normalization_job.py"
+      "flink_hash_verifier_job.py"
+      "flink_analytics_job.py"
+    )
+
+    for JOB in "${FLINK_JOBS[@]}"; do
+      echo -n "    Enviando ${JOB}..."
+      docker exec "${JM_ID}" bash -c \
+        "nohup flink run -py /opt/flink/jobs/${JOB} \
+         > /tmp/flink_${JOB%.py}.log 2>&1 &" \
+        && echo -e " ${GREEN}✅${NC}" \
+        || echo -e " ${YELLOW}⚠️  (ver /tmp/flink_${JOB%.py}.log)${NC}"
+      sleep 3  # pequeña pausa entre envíos
+    done
+
+    echo -e "    ${GREEN}✅ Jobs enviados — revisa: http://localhost:18081${NC}"
+  fi
+else
+  echo -e "    ${YELLOW}⚠️  jobmanager no encontrado, saltando lanzamiento de jobs${NC}"
+fi
+
+echo ""
+# ── 6. Aliases y helpers de desarrollo ─────────────────────
+BASHRC="/home/vscode/.bashrc"
+MARKER="# === ILERNA PAC DES helpers ==="
+
+if ! grep -q "${MARKER}" "${BASHRC}" 2>/dev/null; then
+  cat >> "${BASHRC}" << 'BASHRC_EOF'
+
+# === ILERNA PAC DES helpers ===
+# Funciones para obtener IDs de contenedores por servicio
+jm()  { docker ps -qf "label=com.docker.compose.service=jobmanager"; }
+rp()  { docker ps -qf "label=com.docker.compose.service=redpanda";   }
+
+# Lanzar jobs Flink sin copiar el ID del contenedor
+flink-run()  { docker exec "$(jm)" flink run "$@"; }
+flink-list() { curl -s http://jobmanager:8081/jobs | python3 -m json.tool; }
+
+# Pipeline shortcuts
+alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
+alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
+alias api='uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload'
+alias ui='streamlit run src/05_ui/app.py --server.port 8501'
+# === fin ILERNA PAC DES helpers ===
+BASHRC_EOF
+  echo ">>> [6/6] Aliases de desarrollo añadidos a ~/.bashrc"
+fi
+
 echo "╔══════════════════════════════════════════════════════╗"
 echo -e "║  ${GREEN}✅ Entorno listo${NC}                                    ║"
 echo "╠══════════════════════════════════════════════════════╣"

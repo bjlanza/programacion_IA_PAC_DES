@@ -71,8 +71,9 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 ├── .devcontainer/
 │   ├── docker-compose.yml      # Todos los servicios Docker
 │   ├── Dockerfile              # Imagen del workspace
+│   ├── Dockerfile.jobmanager   # Imagen Flink con JARs y Python pre-instalados
 │   ├── devcontainer.json       # Configuración GitHub Codespaces
-│   └── start.sh                # Script de arranque del entorno
+│   └── start.sh                # Script de arranque (incluye auto-lanzado de jobs Flink)
 │
 ├── src/
 │   ├── 01_ingestion/
@@ -122,12 +123,19 @@ El entorno arranca automáticamente. Esperar a que `start.sh` complete (ver term
 bash tests/test_connectivity.sh
 ```
 
-### 3. Preparar Flink (una sola vez)
+### 3. Preparar Flink
 
-```bash
-docker exec -it $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  bash /opt/flink/jobs/download_flink_jars.sh
-```
+> **En nuevos Codespaces** (tras rebuild): automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs automáticamente.
+>
+> **En la sesión actual** (sin rebuild): ejecutar una sola vez en ambos contenedores:
+> ```bash
+> for SVC in jobmanager taskmanager; do
+>   docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
+>     bash /opt/flink/jobs/download_flink_jars.sh
+> done
+> docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
+> docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
+> ```
 
 ### 4. Arrancar el pipeline completo
 
@@ -176,12 +184,16 @@ Desde la pestaña **Ports** de Codespaces:
 
 ## Variables de entorno principales
 
-| Variable          | Default                    | Descripción                      |
-|-------------------|----------------------------|----------------------------------|
-| `MQTT_HOST`       | `localhost` / `mosquitto`  | Host del broker MQTT             |
-| `MQTT_PORT`       | `11883` / `1883`           | Puerto MQTT (externo / interno)  |
-| `KAFKA_BROKER`    | `localhost:19092`          | Bootstrap servers Kafka          |
-| `INFLUX_URL`      | `http://localhost:18086`   | URL InfluxDB                     |
-| `INFLUX_TOKEN`    | `supersecrettoken`         | Token de autenticación InfluxDB  |
-| `ALERT_THRESHOLD` | `80.0`                     | Temperatura de alerta (°C)       |
-| `MINIO_BUCKET`    | `datalake`                 | Bucket MinIO para histórico      |
+Los scripts Python usan **hostnames internos Docker** por defecto (red `ilerna_ia_big_data`).
+Sobrescribir con variables de entorno si se ejecutan fuera del devcontainer.
+
+| Variable          | Default (interno Docker)    | Descripción                      |
+|-------------------|-----------------------------|----------------------------------|
+| `MQTT_HOST`       | `mosquitto`                 | Host del broker MQTT             |
+| `MQTT_PORT`       | `1883`                      | Puerto MQTT (interno)            |
+| `KAFKA_BROKER`    | `redpanda:29092`            | Bootstrap servers Kafka          |
+| `INFLUX_URL`      | `http://influxdb:8086`      | URL InfluxDB                     |
+| `INFLUX_TOKEN`    | `supersecrettoken`          | Token de autenticación InfluxDB  |
+| `MINIO_ENDPOINT`  | `minio:9000`                | Endpoint MinIO S3                |
+| `ALERT_THRESHOLD` | `80.0`                      | Temperatura de alerta (°C)       |
+| `MINIO_BUCKET`    | `datalake`                  | Bucket MinIO para histórico      |

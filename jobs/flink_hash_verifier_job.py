@@ -34,12 +34,15 @@ import logging
 import os
 
 from pyflink.common import Types, WatermarkStrategy
+from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream import StreamExecutionEnvironment, OutputTag
 from pyflink.datastream.connectors.kafka import (
-    FlinkKafkaConsumer,
-    FlinkKafkaProducer,
+    DeliveryGuarantee,
+    KafkaOffsetsInitializer,
+    KafkaRecordSerializationSchema,
+    KafkaSink,
+    KafkaSource,
 )
-from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.functions import KeyedProcessFunction
 from pyflink.datastream.state import ValueStateDescriptor
 
@@ -124,32 +127,31 @@ def main():
     env = StreamExecutionEnvironment.get_execution_environment()
     env.set_parallelism(1)
 
-    kafka_props = {
-        "bootstrap.servers": KAFKA_BROKER,
-        "group.id":          "flink-hash-verifier",
-        "auto.offset.reset": "earliest",
-    }
-
-    consumer = FlinkKafkaConsumer(
-        topics=KAFKA_INPUT,
-        deserialization_schema=SimpleStringSchema(),
-        properties=kafka_props,
-    )
-    consumer.set_start_from_earliest()
-
-    producer_verified = FlinkKafkaProducer(
-        topic=KAFKA_VERIFIED,
-        serialization_schema=SimpleStringSchema(),
-        producer_config={"bootstrap.servers": KAFKA_BROKER},
+    source = (
+        KafkaSource.builder()
+        .set_bootstrap_servers(KAFKA_BROKER)
+        .set_topics(KAFKA_INPUT)
+        .set_group_id("flink-hash-verifier")
+        .set_starting_offsets(KafkaOffsetsInitializer.earliest())
+        .set_value_only_deserializer(SimpleStringSchema())
+        .build()
     )
 
-    producer_dlq = FlinkKafkaProducer(
-        topic=KAFKA_DLQ,
-        serialization_schema=SimpleStringSchema(),
-        producer_config={"bootstrap.servers": KAFKA_BROKER},
-    )
+    def _kafka_sink(topic: str) -> KafkaSink:
+        return (
+            KafkaSink.builder()
+            .set_bootstrap_servers(KAFKA_BROKER)
+            .set_record_serializer(
+                KafkaRecordSerializationSchema.builder()
+                .set_topic(topic)
+                .set_value_serialization_schema(SimpleStringSchema())
+                .build()
+            )
+            .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+            .build()
+        )
 
-    stream = env.add_source(consumer)
+    stream = env.from_source(source, WatermarkStrategy.no_watermarks(), "Kafka Source")
 
     # Keyear por device_id para que el estado sea independiente por máquina
     # El campo device_id está dentro del JSON, así que lo extraemos primero
@@ -161,10 +163,10 @@ def main():
     verified_stream = keyed.process(HashChainVerifier(), Types.STRING())
 
     # Stream principal → sensors_verified
-    verified_stream.add_sink(producer_verified)
+    verified_stream.sink_to(_kafka_sink(KAFKA_VERIFIED))
 
     # Side output (mensajes con cadena rota) → DLQ
-    verified_stream.get_side_output(TAMPERED_TAG).add_sink(producer_dlq)
+    verified_stream.get_side_output(TAMPERED_TAG).sink_to(_kafka_sink(KAFKA_DLQ))
 
     log.info("Hash verifier: %s → %s (DLQ: %s)", KAFKA_INPUT, KAFKA_VERIFIED, KAFKA_DLQ)
     env.execute("sensor-hash-chain-verifier")

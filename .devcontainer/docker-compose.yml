@@ -113,13 +113,16 @@ services:
 
   # 3a. Procesamiento: Apache Flink (JobManager)
   jobmanager:
-    image: flink:1.18.1-scala_2.12-java11
+    build:
+      context: .
+      dockerfile: Dockerfile.jobmanager
     hostname: jobmanager
     restart: unless-stopped
     ports:
       - "18081:8081"
     command: jobmanager
     environment:
+      - PYTHONPATH=/opt/flink/opt/python/pyflink.zip
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
@@ -144,7 +147,9 @@ services:
 
   # 3b. Procesamiento: Apache Flink (TaskManager)
   taskmanager:
-    image: flink:1.18.1-scala_2.12-java11
+    build:
+      context: .
+      dockerfile: Dockerfile.jobmanager
     hostname: taskmanager
     restart: unless-stopped
     depends_on:
@@ -152,6 +157,7 @@ services:
         condition: service_healthy
     command: taskmanager
     environment:
+      - PYTHONPATH=/opt/flink/opt/python/pyflink.zip
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager

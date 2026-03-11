@@ -30,7 +30,7 @@ import urllib.request
 
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.functions import MapFunction, SinkFunction
-from pyflink.table import StreamTableEnvironment, DataTypes, Row
+from pyflink.table import StreamTableEnvironment, DataTypes
 from pyflink.table.udf import udf
 
 logging.basicConfig(
@@ -162,17 +162,8 @@ def main():
     """)
 
     # Convertir Table → DataStream para usar sink personalizado
-    ds = t_env.to_append_stream(
-        result_table,
-        DataTypes.ROW([
-            DataTypes.FIELD("device_id",      DataTypes.STRING()),
-            DataTypes.FIELD("window_start",   DataTypes.TIMESTAMP(3)),
-            DataTypes.FIELD("window_end",     DataTypes.TIMESTAMP(3)),
-            DataTypes.FIELD("avg_temp_c",     DataTypes.DOUBLE()),
-            DataTypes.FIELD("max_temp_c",     DataTypes.DOUBLE()),
-            DataTypes.FIELD("count_readings", DataTypes.BIGINT()),
-        ])
-    )
+    # to_append_stream fue eliminado en Flink 1.17+; usar to_data_stream
+    ds = t_env.to_data_stream(result_table)
 
     # ── Sink: InfluxDB ────────────────────────────────────────
     ds.add_sink(InfluxDBSink(

@@ -98,16 +98,23 @@ docker compose -f .devcontainer/docker-compose.yml down --remove-orphans
 docker compose -f .devcontainer/docker-compose.yml up -d
 ```
 
-### Paso 1 — Preparar Flink (una sola vez por Codespace)
+### Paso 1 — Preparar Flink
+
+> **Desde el siguiente rebuild del Codespace**: automático. El `Dockerfile.jobmanager` incluye Python 3, el JAR Kafka SQL Connector y el plugin S3/MinIO. `start.sh` lanza los jobs automáticamente al arrancar.
+>
+> **Primera vez en la sesión actual** (sin rebuild): instalar en **ambos** contenedores (jobmanager ejecuta el job; taskmanager ejecuta las tareas).
 
 ```bash
-# Descargar JAR Kafka + configurar plugin S3 para MinIO
-docker exec -it $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  bash /opt/flink/jobs/download_flink_jars.sh
+# Instalar JARs en jobmanager Y taskmanager
+for SVC in jobmanager taskmanager; do
+  docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
+    bash /opt/flink/jobs/download_flink_jars.sh
+done
 
-# Reiniciar JobManager para cargar el plugin S3
+# Reiniciar ambos para cargar el plugin S3
 docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
-sleep 15   # esperar a que el cluster esté listo
+docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
+sleep 20   # esperar a que el cluster esté listo
 ```
 
 ### Paso 2 — Crear los topics Kafka

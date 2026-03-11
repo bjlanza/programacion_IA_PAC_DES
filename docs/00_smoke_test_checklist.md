@@ -137,21 +137,24 @@ curl -s http://localhost:18081/taskmanagers | python3 -m json.tool | grep -i "id
 
 - [ ] Aparece al menos 1 TaskManager con slots disponibles ✅
 
-### Descargar JARs y configurar plugin S3 (una vez)
-```bash
-docker exec -it $(docker ps -qf "label=com.docker.compose.service=jobmanager") \
-  bash /opt/flink/jobs/download_flink_jars.sh
-```
+### JARs Flink (automático en nuevos Codespaces)
 
-- [ ] JAR Kafka connector descargado en `/opt/flink/lib/` ✅
-- [ ] Plugin S3 copiado a `/opt/flink/plugins/flink-s3-fs-hadoop/` ✅
-- [ ] Configuración S3/MinIO añadida a `flink-conf.yaml` ✅
-
-> Tras ejecutar el script, reinicia el JobManager para cargar el plugin S3:
+> **Nuevo Codespace / tras rebuild**: `Dockerfile.jobmanager` pre-instala los JARs. Saltar al siguiente apartado.
+>
+> **Sesión actual sin rebuild**: instalar en jobmanager **y** taskmanager:
 > ```bash
+> for SVC in jobmanager taskmanager; do
+>   docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
+>     bash /opt/flink/jobs/download_flink_jars.sh
+> done
 > docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
-> # Espera ~15s y verifica que el UI vuelve a responder en http://localhost:18081
+> docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
+> sleep 20
 > ```
+
+- [ ] JAR `flink-sql-connector-kafka-3.1.0-1.18.jar` en `/opt/flink/lib/` (jobmanager y taskmanager) ✅
+- [ ] Plugin S3 en `/opt/flink/plugins/flink-s3-fs-hadoop/` ✅
+- [ ] Configuración S3/MinIO en `flink-conf.yaml` ✅
 
 ---
 
