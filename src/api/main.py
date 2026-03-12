@@ -13,7 +13,7 @@ Endpoints:
   GET  /model/status                → Estado del modelo ML
 
 Uso:
-  uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+  uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 """
 
 import json

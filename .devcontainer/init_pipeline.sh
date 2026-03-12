@@ -90,7 +90,7 @@ flink-list() { curl -s http://jobmanager:8081/jobs | python3 -m json.tool; }
 
 alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
-alias api='uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload'
+alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
 # === fin ILERNA PAC DES helpers ===
 BASHRC_EOF

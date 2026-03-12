@@ -177,7 +177,7 @@ python src/01_ingestion/sensor_simulator.py --machines 5 --interval 2 --fault-ra
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
 # Terminal 3 — FastAPI — Hito 4 (alias: api)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 4 — Dashboard Streamlit — Hito 4 (alias: ui)
 streamlit run src/05_ui/app.py --server.port 8501
@@ -419,10 +419,10 @@ curl -s http://localhost:8000/alerts | python3 -m json.tool
 
 ## Hito 4 — API de Servicio y Dashboard
 
-### FastAPI — `src/04_api/main.py`
+### FastAPI — `src/api/main.py`
 
 ```bash
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 # Docs interactivos: http://localhost:8000/docs
 ```
 
@@ -672,7 +672,7 @@ for o in objects[:5]:
 
 ### A3 — IA Cloud: Detección de Anomalías con IsolationForest
 
-**Archivos:** `src/04_api/anomaly_model.py` + `src/04_api/main.py`
+**Archivos:** `src/api/anomaly_model.py` + `src/api/main.py`
 
 #### Edge vs Cloud Intelligence
 

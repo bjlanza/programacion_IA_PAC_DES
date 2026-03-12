@@ -15,7 +15,7 @@ IsolationForest:
   · Score: más negativo → más anómalo.
 
 Uso desde FastAPI:
-  from src.04_api.anomaly_model import detector
+  from src.api.anomaly_model import detector
   detector.train(temperatures)
   result = detector.predict(current_temp)
 """

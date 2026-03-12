@@ -295,7 +295,7 @@ docker exec $JM flink run -py /opt/flink/jobs/flink_analytics_job.py &
 docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py &
 
 # 7. FastAPI — Hito 4 (Terminal 3) — alias: api
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # 8. Dashboard — Hito 4 (Terminal 4) — alias: ui
 streamlit run src/05_ui/app.py --server.port 8501

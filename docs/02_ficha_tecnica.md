@@ -87,7 +87,7 @@ Las siguientes diferencias entre la ficha de referencia y la implementación rea
 | 2 | No menciona DLQ          | Topic `sensors_invalid` añadido. Flink usa `StatementSet` con dos `INSERT INTO` en el mismo job. | ✅ Añadido |
 | 3 | `httpx` en librerías     | No se usa `httpx`. Flink usa `urllib.request` (stdlib) para InfluxDB. FastAPI usa Pydantic. | ℹ️ Nota: `httpx` no está instalado ni es necesario. |
 | 4 | Grafana "monitorización" | Grafana está levantado pero **sin datasource de InfluxDB configurado**. | ⚠️ Pendiente: configurar datasource manual o via provisioning |
-| 5 | `scikit-learn` en stack  | Implementado en `src/04_api/anomaly_model.py` como `AnomalyDetector(IsolationForest)`. Singleton en FastAPI. Endpoints: `POST /model/train`, `GET /model/status`, `GET /machines/{id}/predict`. | ✅ Implementado (Aportación A3) |
+| 5 | `scikit-learn` en stack  | Implementado en `src/api/anomaly_model.py` como `AnomalyDetector(IsolationForest)`. Singleton en FastAPI. Endpoints: `POST /model/train`, `GET /model/status`, `GET /machines/{id}/predict`. | ✅ Implementado (Aportación A3) |
 | 6 | Topic `sensors_raw`      | Schema enriquecido: añade `_mqtt_topic`, `_mqtt_qos`, `_ingested_at` | ✅ Superconjunto de lo especificado |
 | 7 | Puerto MinIO "19000"     | S3 API en 19000, Console UI en 19001 (dos puertos distintos)     | ✅ Correcto |
 | 8 | TaskManager sin puerto   | Correcto: el taskmanager no expone puerto externo                | ✅ Correcto |

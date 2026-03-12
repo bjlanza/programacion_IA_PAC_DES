@@ -85,7 +85,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │   ├── 03_storage/
 │   │   ├── kafka_to_influx.py          # Consumidor Kafka → InfluxDB (directo)
 │   │   └── kafka_to_minio.py           # Consumidor Kafka → MinIO Parquet
-│   ├── 04_api/
+│   ├── api/
 │   │   └── main.py                     # Hito 4: FastAPI REST
 │   └── 05_ui/
 │       └── app.py                      # Hito 4: Streamlit + DuckDB histórico
@@ -137,7 +137,7 @@ python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
 # Terminal 3 — FastAPI (alias: api)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 4 — Dashboard (alias: ui)
 streamlit run src/05_ui/app.py --server.port 8501
