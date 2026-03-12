@@ -413,26 +413,26 @@ corriendo para que haya datos en InfluxDB (`machine_stats`).
 
 ```bash
 # 1. Verificar que hay datos antes de entrenar
-curl -s http://localhost:18000/model/status | python3 -m json.tool
+curl -s http://localhost:8000/model/status | python3 -m json.tool
 
 # 2. Entrenar el modelo con los últimos 60 minutos de datos
 #    contamination=0.1 → asume que ~10% de las lecturas son anómalas
-curl -s -X POST "http://localhost:18000/model/train?range_minutes=60&contamination=0.1" \
+curl -s -X POST "http://localhost:8000/model/train?range_minutes=60&contamination=0.1" \
   | python3 -m json.tool
 
 # Si hay pocos datos (pipeline recién iniciado), usar ventana más corta:
-curl -s -X POST "http://localhost:18000/model/train?range_minutes=10&contamination=0.1" \
+curl -s -X POST "http://localhost:8000/model/train?range_minutes=10&contamination=0.1" \
   | python3 -m json.tool
 
 # 3. Verificar estado del modelo tras el entrenamiento
-curl -s http://localhost:18000/model/status | python3 -m json.tool
+curl -s http://localhost:8000/model/status | python3 -m json.tool
 
 # 4a. Predecir temperatura NORMAL (70°C)
-curl -s "http://localhost:18000/machines/machine-001/predict?temperature_c=70.0" \
+curl -s "http://localhost:8000/machines/machine-001/predict?temperature_c=70.0" \
   | python3 -m json.tool
 
 # 4b. Predecir temperatura ANÓMALA (95°C)
-curl -s "http://localhost:18000/machines/machine-001/predict?temperature_c=95.0" \
+curl -s "http://localhost:8000/machines/machine-001/predict?temperature_c=95.0" \
   | python3 -m json.tool
 ```
 
