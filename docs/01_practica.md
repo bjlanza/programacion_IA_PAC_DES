@@ -118,7 +118,7 @@ Automático — `start.sh` crea el bucket `datalake` al arrancar. Para verificar
 ```bash
 python3 -c "
 from minio import Minio
-c = Minio('minio:9000', access_key='admin', secret_key='adminpassword', secure=False)
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 if c.bucket_exists('datalake'):
     print('Bucket datalake existe')
 else:
@@ -645,7 +645,7 @@ docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py
 # Verificar que se crean archivos en MinIO
 python3 -c "
 from minio import Minio
-c = Minio('minio:9000', access_key='admin', secret_key='adminpassword', secure=False)
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 objects = list(c.list_objects('datalake', prefix='clean/', recursive=True))
 print(f'{len(objects)} archivos Parquet en MinIO')
 for o in objects[:5]:

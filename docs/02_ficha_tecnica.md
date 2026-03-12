@@ -70,9 +70,9 @@
 
 | Servicio  | Usuario | Contraseña      | Token                  |
 |-----------|---------|-----------------|------------------------|
-| InfluxDB  | admin   | adminpassword   | `supersecrettoken`     |
-| MinIO     | admin   | adminpassword   | —                      |
-| Grafana   | admin   | admin           | —                      |
+| InfluxDB  | admin   | Ilerna_Programaci0n | `supersecrettoken`     |
+| MinIO     | admin   | Ilerna_Programaci0n | —                      |
+| Grafana   | admin   | Ilerna_Programaci0n | —                      |
 | MQTT      | —       | —               | anónimo (sin auth)     |
 
 ---

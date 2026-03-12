@@ -189,7 +189,7 @@ services:
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_PASSWORD=Ilerna_Programaci0n
       - DOCKER_INFLUXDB_INIT_ORG=ilerna
       - DOCKER_INFLUXDB_INIT_BUCKET=sensores
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=supersecrettoken
@@ -219,7 +219,7 @@ services:
       - "19001:9001" # WebUI Console
     environment:
       - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=adminpassword
+      - MINIO_ROOT_PASSWORD=Ilerna_Programaci0n
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data
@@ -248,7 +248,7 @@ services:
     ports:
       - "13000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=Ilerna_Programaci0n
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:

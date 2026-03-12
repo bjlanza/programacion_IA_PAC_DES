@@ -63,9 +63,9 @@ En Codespaces: pestaña **Ports** → abrir cada puerto en el navegador.
 
 - [ ] **Redpanda Console** (18080) — se carga la lista de tópicos
 - [ ] **Flink UI** (18081) — se ve el Overview y al menos 1 TaskManager registrado
-- [ ] **InfluxDB** (18086) — pantalla de login, entrar con `admin` / `adminpassword`
-- [ ] **MinIO Console** (19001) — pantalla de login, entrar con `admin` / `adminpassword`
-- [ ] **Grafana** (13000) — pantalla de login, entrar con `admin` / `admin`
+- [ ] **InfluxDB** (18086) — pantalla de login, entrar con `admin` / `Ilerna_Programaci0n`
+- [ ] **MinIO Console** (19001) — pantalla de login, entrar con `admin` / `Ilerna_Programaci0n`
+- [ ] **Grafana** (13000) — pantalla de login, entrar con `admin` / `Ilerna_Programaci0n`
 
 ---
 
@@ -79,12 +79,12 @@ sudo apt-get update && sudo apt-get install -y mosquitto-clients
 ### Publish / Subscribe round-trip
 Terminal A (suscriptor):
 ```bash
-mosquitto_sub -h localhost -p 11883 -t "sensors/telemetry" -v
+mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v
 ```
 
 Terminal B (publicador):
 ```bash
-mosquitto_pub -h localhost -p 11883 -t "sensors/telemetry" \
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
   -m '{"device_id":"machine-001","temperature":75.0,"unit":"C","ts":"2026-01-01T00:00:00Z"}'
 ```
 
@@ -132,25 +132,26 @@ docker exec $RP rpk topic list
 
 ### Verificar TaskManager registrado
 ```bash
-curl -s http://localhost:18081/taskmanagers | python3 -m json.tool | grep -i "id\|slots"
+curl -s http://jobmanager:8081/taskmanagers | python3 -m json.tool | grep -i "id\|slots"
 ```
 
 - [ ] Aparece al menos 1 TaskManager con slots disponibles ✅
 
-### JARs Flink (automático en nuevos Codespaces)
+### Verificar JARs y configuración S3
+```bash
+JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
+TM=$(docker ps -qf "label=com.docker.compose.service=taskmanager")
 
-> **Nuevo Codespace / tras rebuild**: `Dockerfile.jobmanager` pre-instala los JARs. Saltar al siguiente apartado.
->
-> **Sesión actual sin rebuild**: instalar en jobmanager **y** taskmanager:
-> ```bash
-> for SVC in jobmanager taskmanager; do
->   docker exec "$(docker ps -qf "label=com.docker.compose.service=${SVC}")" \
->     bash /opt/flink/jobs/download_flink_jars.sh
-> done
-> docker restart $(docker ps -qf "label=com.docker.compose.service=jobmanager")
-> docker restart $(docker ps -qf "label=com.docker.compose.service=taskmanager")
-> sleep 20
-> ```
+# JAR Kafka en jobmanager y taskmanager
+docker exec $JM ls /opt/flink/lib/ | grep kafka
+docker exec $TM ls /opt/flink/lib/ | grep kafka
+
+# Plugin S3
+docker exec $JM ls /opt/flink/plugins/flink-s3-fs-hadoop/
+
+# Configuración S3/MinIO
+docker exec $JM grep -i "s3\|minio" /opt/flink/conf/flink-conf.yaml
+```
 
 - [ ] JAR `flink-sql-connector-kafka-3.1.0-1.18.jar` en `/opt/flink/lib/` (jobmanager y taskmanager) ✅
 - [ ] Plugin S3 en `/opt/flink/plugins/flink-s3-fs-hadoop/` ✅
@@ -162,7 +163,7 @@ curl -s http://localhost:18081/taskmanagers | python3 -m json.tool | grep -i "id
 
 ### Verificar health
 ```bash
-curl -f http://localhost:18086/ping && echo "OK"
+curl -f http://influxdb:8086/ping && echo "OK"
 ```
 
 - [ ] Responde `204 No Content` ✅
@@ -170,7 +171,7 @@ curl -f http://localhost:18086/ping && echo "OK"
 ### Verificar bucket
 ```bash
 curl -s -H "Authorization: Token supersecrettoken" \
-  "http://localhost:18086/api/v2/buckets?org=ilerna" | python3 -m json.tool | grep '"name"'
+  "http://influxdb:8086/api/v2/buckets?org=ilerna" | python3 -m json.tool | grep '"name"'
 ```
 
 - [ ] Aparece el bucket `sensores` ✅
@@ -181,7 +182,7 @@ curl -s -H "Authorization: Token supersecrettoken" \
 
 ### Verificar health
 ```bash
-curl -f http://localhost:19000/minio/health/live && echo "OK"
+curl -f http://minio:9000/minio/health/live && echo "OK"
 ```
 
 - [ ] Responde `200 OK` ✅
@@ -190,7 +191,7 @@ curl -f http://localhost:19000/minio/health/live && echo "OK"
 ```bash
 python3 -c "
 from minio import Minio
-c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 if not c.bucket_exists('datalake'):
     c.make_bucket('datalake')
     print('Bucket datalake creado')
@@ -299,7 +300,7 @@ docker exec $RP rpk topic consume sensors_invalid -n 3 | python3 -m json.tool | 
 # Verificar objetos en MinIO:
 python3 -c "
 from minio import Minio
-c = Minio('localhost:19000', access_key='admin', secret_key='adminpassword', secure=False)
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 objs = list(c.list_objects('datalake', prefix='clean/', recursive=True))
 print(f'Archivos Parquet en MinIO: {len(objs)}')
 for o in objs[:5]:
@@ -314,13 +315,13 @@ for o in objs[:5]:
 
 ```bash
 # Entrenar el modelo vía FastAPI (necesita datos en InfluxDB)
-curl -s -X POST http://localhost:18000/model/train | python3 -m json.tool
+curl -s -X POST http://localhost:8000/model/train | python3 -m json.tool
 
 # Ver estado del modelo
-curl -s http://localhost:18000/model/status | python3 -m json.tool
+curl -s http://localhost:8000/model/status | python3 -m json.tool
 
 # Predecir para una temperatura alta (posible anomalía)
-curl -s "http://localhost:18000/machines/machine-001/predict?temperature_c=95.0" | python3 -m json.tool
+curl -s "http://localhost:8000/machines/machine-001/predict?temperature_c=95.0" | python3 -m json.tool
 ```
 
 - [ ] `/model/train` responde `{"trained": true, "samples": N, "stats": {...}}` ✅
@@ -366,10 +367,10 @@ docker logs $(docker ps -qf "label=com.docker.compose.service=jobmanager") --tai
 docker exec $(docker ps -qf "label=com.docker.compose.service=redpanda") rpk topic list
 
 # Ver jobs Flink activos
-curl -s http://localhost:18081/jobs | python3 -m json.tool
+curl -s http://jobmanager:8081/jobs | python3 -m json.tool
 
 # Cancelar un job Flink
-curl -X PATCH http://localhost:18081/jobs/<JOB_ID>?mode=cancel
+curl -X PATCH http://jobmanager:8081/jobs/<JOB_ID>?mode=cancel
 
 # Reiniciar solo el simulador con más fallos
 python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.3 --interval 1
