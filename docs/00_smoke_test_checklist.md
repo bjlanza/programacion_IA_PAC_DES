@@ -13,7 +13,8 @@ Completa en orden: primero infraestructura, luego pipeline.
 ## Fase 0 — Requisitos previos
 
 - [ ] Estoy dentro del Codespace (terminal integrada de VS Code).
-- [ ] El script `start.sh` ha terminado sin errores (ver output del terminal al abrir).
+- [ ] El script `start.sh` ha terminado mostrando `Infraestructura lista` (postStartCommand automático).
+- [ ] He ejecutado `bash .devcontainer/init_pipeline.sh` y muestra `Pipeline listo`.
 - [ ] Existe `.devcontainer/docker-compose.yml`.
 - [ ] Existe `config/mosquitto.conf` con `listener 1883 0.0.0.0` y `allow_anonymous true`.
 
@@ -76,19 +77,63 @@ En Codespaces: pestaña **Ports** → abrir cada puerto en el navegador.
 sudo apt-get update && sudo apt-get install -y mosquitto-clients
 ```
 
-### Publish / Subscribe round-trip
+### 4.1 — Publish / Subscribe round-trip básico
 Terminal A (suscriptor):
 ```bash
 mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v
 ```
 
-Terminal B (publicador):
+Terminal B (publicador — mensaje válido en Celsius):
 ```bash
 mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
   -m '{"device_id":"machine-001","temperature":75.0,"unit":"C","ts":"2026-01-01T00:00:00Z"}'
 ```
 
 - [ ] En terminal A aparece el JSON publicado ✅
+
+### 4.2 — Mensaje válido en Fahrenheit
+```bash
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m '{"device_id":"machine-002","temperature":167.0,"unit":"F","ts":"2026-01-01T00:01:00Z"}'
+```
+
+- [ ] Mensaje aparece en suscriptor ✅
+- [ ] Bridge lo acepta y publica en `sensors_raw` (ver logs del bridge) ✅
+
+### 4.3 — Mensaje válido en Kelvin
+```bash
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m '{"device_id":"machine-003","temperature":348.15,"unit":"K","ts":"2026-01-01T00:02:00Z"}'
+```
+
+- [ ] Mensaje aparece en suscriptor ✅
+- [ ] Bridge lo acepta y publica en `sensors_raw` ✅
+
+### 4.4 — Mensaje con campo faltante (debe ser rechazado por el bridge)
+```bash
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m '{"device_id":"machine-001","temperature":75.0,"ts":"2026-01-01T00:03:00Z"}'
+```
+
+- [ ] El bridge muestra `WARNING Mensaje rechazado` (falta campo `unit`) ✅
+- [ ] El mensaje NO llega a `sensors_raw` ✅
+
+### 4.5 — JSON malformado (debe ser rechazado por el bridge)
+```bash
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m 'esto no es json'
+```
+
+- [ ] El bridge muestra `WARNING` o error de parseo ✅
+- [ ] El mensaje NO llega a `sensors_raw` ✅
+
+### 4.6 — Unidad inválida (debe ser rechazado por el bridge)
+```bash
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m '{"device_id":"machine-001","temperature":75.0,"unit":"X","ts":"2026-01-01T00:04:00Z"}'
+```
+
+- [ ] El bridge rechaza el mensaje (unit no está en {C,F,K}) ✅
 
 ---
 
@@ -249,11 +294,11 @@ docker exec $JM flink run -py /opt/flink/jobs/flink_analytics_job.py &
 # 6. Flink → MinIO Parquet — Aportación A2 Lambda Cold Path
 docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py &
 
-# 7. FastAPI — Hito 4 (Terminal 3)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 18000 --reload
+# 7. FastAPI — Hito 4 (Terminal 3) — alias: api
+uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 8. Dashboard — Hito 4 (Terminal 4)
-streamlit run src/05_ui/app.py --server.port 18501
+# 8. Dashboard — Hito 4 (Terminal 4) — alias: ui
+streamlit run src/05_ui/app.py --server.port 8501
 ```
 
 ### Verificaciones del pipeline activo
@@ -282,16 +327,59 @@ streamlit run src/05_ui/app.py --server.port 18501
 
 ```bash
 RP=$(docker ps -qf "label=com.docker.compose.service=redpanda")
-
-# Ver mensajes en sensors_verified (cadena íntegra)
-docker exec $RP rpk topic consume sensors_verified -n 3
-
-# Ver mensajes con cadena rota en sensors_invalid
-docker exec $RP rpk topic consume sensors_invalid -n 3 | python3 -m json.tool | grep reason
 ```
 
-- [ ] `sensors_verified` contiene mensajes con campos `hash` y `prev_hash` ✅
-- [ ] `sensors_invalid` contiene mensajes con campo `reason: "hash_chain_broken..."` ✅
+#### Verificar mensajes íntegros en sensors_verified
+```bash
+docker exec $RP rpk topic consume sensors_verified -n 3 | python3 -m json.tool
+```
+
+- [ ] Contiene campos `hash` y `prev_hash` en cada mensaje ✅
+- [ ] El `device_id` coincide con el esperado ✅
+
+#### Verificar mensajes con cadena rota en sensors_invalid (DLQ)
+```bash
+docker exec $RP rpk topic consume sensors_invalid -n 5 | python3 -c "
+import sys, json
+for line in sys.stdin:
+    try:
+        msg = json.loads(line)
+        print(f'device={msg.get(\"device_id\")} reason={msg.get(\"reason\")}')
+    except: pass
+"
+```
+
+- [ ] Aparecen mensajes con `reason: hash_chain_broken` ✅
+- [ ] Aparecen mensajes con `reason` de validación del bridge (`missing_field`, etc.) ✅
+
+#### Simular mensaje con hash manipulado
+```bash
+# Publicar un mensaje con hash incorrecto para forzar detección
+mosquitto_pub -h mosquitto -p 1883 -t "sensors/telemetry" \
+  -m '{"device_id":"machine-001","temperature":72.0,"unit":"C","ts":"2026-01-01T12:00:00Z","hash":"aaaaaa","prev_hash":"bbbbbb"}'
+```
+
+```bash
+# Verificar que llega a sensors_invalid con reason hash_chain_broken
+sleep 3
+docker exec $RP rpk topic consume sensors_invalid -n 1 | python3 -m json.tool | grep reason
+```
+
+- [ ] El mensaje con hash manipulado aparece en `sensors_invalid` ✅
+- [ ] El campo `reason` contiene `hash_chain_broken` ✅
+
+#### Contar mensajes por tópico
+```bash
+for TOPIC in sensors_raw sensors_clean sensors_invalid sensors_verified; do
+  COUNT=$(docker exec $RP rpk topic describe $TOPIC -p | grep -oP 'high-watermark:\s*\K\d+' | awk '{s+=$1} END {print s}')
+  echo "$TOPIC: $COUNT mensajes"
+done
+```
+
+- [ ] `sensors_raw` > 0 ✅
+- [ ] `sensors_clean` > 0 ✅
+- [ ] `sensors_invalid` > 0 (fallos + hash roto) ✅
+- [ ] `sensors_verified` > 0 ✅
 
 ### A2 — Lambda Architecture (Cold Path Parquet)
 

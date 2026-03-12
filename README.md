@@ -57,9 +57,9 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 | Redpanda         | 19092          | Kafka-compatible broker      | —                   |
 | Redpanda Console | 18080          | UI de tópicos y mensajes     | —                   |
 | Flink JobManager | 18081          | Cluster Flink (REST + UI)    | —                   |
-| InfluxDB         | 18086          | Base de datos de series temp.| admin / adminpassword |
-| MinIO            | 19000 / 19001  | S3 API / Consola web         | admin / adminpassword |
-| Grafana          | 13000          | Dashboards                   | admin / admin       |
+| InfluxDB         | 18086          | Base de datos de series temp.| admin / Ilerna_Programaci0n |
+| MinIO            | 19000 / 19001  | S3 API / Consola web         | admin / Ilerna_Programaci0n |
+| Grafana          | 13000          | Dashboards                   | admin / Ilerna_Programaci0n |
 | FastAPI          | 18000          | API REST sensores            | —                   |
 | Streamlit        | 18501          | Dashboard interactivo        | —                   |
 | JupyterLab       | 18888          | Notebooks de análisis        | —                   |
@@ -73,7 +73,8 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │   ├── Dockerfile              # Imagen del workspace
 │   ├── Dockerfile.jobmanager   # Imagen Flink con JARs y Python pre-instalados
 │   ├── devcontainer.json       # Configuración GitHub Codespaces
-│   └── start.sh                # Script de arranque (incluye auto-lanzado de jobs Flink)
+│   ├── start.sh                # Levanta Docker y espera healthy (postStartCommand automático)
+│   └── init_pipeline.sh        # Inicializa topics, bucket MinIO, jobs Flink y aliases (manual)
 │
 ├── src/
 │   ├── 01_ingestion/
@@ -114,38 +115,35 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 
 ### 1. Abrir en GitHub Codespaces
 
-El entorno arranca automáticamente. Esperar a que `start.sh` complete (ver terminal).
+El entorno arranca automáticamente. `start.sh` levanta Docker y espera a que todos los servicios estén healthy.
 
-### 2. Verificar que todo está levantado
+### 2. Inicializar el pipeline
+
+Una vez que `start.sh` finalice, ejecuta en el terminal:
 
 ```bash
-bash tests/test_connectivity.sh
+bash .devcontainer/init_pipeline.sh
 ```
 
-### 3. Preparar Flink
-
-Automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs al arrancar.
+Esto crea los topics Kafka, el bucket MinIO, lanza los jobs Flink y añade aliases de desarrollo.
 
 ### 4. Arrancar el pipeline completo
 
 ```bash
-# Terminal 1 — Simulador de sensores (5 máquinas, fallos al 10%)
+# Terminal 1 — Simulador de sensores (alias: sim)
 python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
 
-# Terminal 2 — Bridge MQTT → Redpanda (Hito 1)
+# Terminal 2 — Bridge MQTT → Redpanda (alias: bridge)
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
-# Terminal 3 — Archivador histórico → MinIO
-python src/03_storage/kafka_to_minio.py
+# Terminal 3 — FastAPI (alias: api)
+uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Terminal 4 — FastAPI (Hito 4)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 18000 --reload
-
-# Terminal 5 — Dashboard (Hito 4)
-streamlit run src/05_ui/app.py --server.port 18501
+# Terminal 4 — Dashboard (alias: ui)
+streamlit run src/05_ui/app.py --server.port 8501
 ```
 
-> **Nota:** Los jobs Flink (normalización, analítica, cold path) y los topics Kafka y bucket MinIO se lanzan automáticamente en `start.sh` al arrancar el Codespace.
+> **Nota:** Los jobs Flink, topics Kafka y bucket MinIO se inicializan con `init_pipeline.sh`. Usa los aliases `sim`, `bridge`, `api`, `ui` como atajos.
 
 ### 5. Acceder a las UIs
 

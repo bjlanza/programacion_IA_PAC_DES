@@ -86,7 +86,7 @@ else
 s3.endpoint: http://minio:9000
 s3.path.style.access: true
 s3.access-key: admin
-s3.secret-key: adminpassword
+s3.secret-key: Ilerna_Programaci0n
 EOF
   echo -e "  ${GREEN}✅ Configuración S3 añadida a flink-conf.yaml${NC}"
 fi

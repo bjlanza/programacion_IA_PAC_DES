@@ -36,7 +36,7 @@ INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "sensores")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS   = os.getenv("MINIO_ACCESS",   "admin")
-MINIO_SECRET   = os.getenv("MINIO_SECRET",   "adminpassword")
+MINIO_SECRET   = os.getenv("MINIO_SECRET",   "Ilerna_Programaci0n")
 MINIO_BUCKET   = os.getenv("MINIO_BUCKET",   "datalake")
 
 ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "80.0"))

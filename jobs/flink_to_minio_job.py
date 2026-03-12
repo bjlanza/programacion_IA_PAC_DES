@@ -25,7 +25,7 @@ Variables de entorno:
   KAFKA_GROUP     (default: flink-minio-writer)
   S3_ENDPOINT     (default: http://minio:9000)
   S3_ACCESS       (default: admin)
-  S3_SECRET       (default: adminpassword)
+  S3_SECRET       (default: Ilerna_Programaci0n)
   S3_BUCKET       (default: datalake)
   S3_PATH         (default: clean)
 """
@@ -49,7 +49,7 @@ KAFKA_GROUP  = os.getenv("KAFKA_GROUP",  "flink-minio-writer")
 
 S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://minio:9000")
 S3_ACCESS   = os.getenv("S3_ACCESS",   "admin")
-S3_SECRET   = os.getenv("S3_SECRET",   "adminpassword")
+S3_SECRET   = os.getenv("S3_SECRET",   "Ilerna_Programaci0n")
 S3_BUCKET   = os.getenv("S3_BUCKET",   "datalake")
 S3_PATH     = os.getenv("S3_PATH",     "clean")
 

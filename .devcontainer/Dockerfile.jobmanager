@@ -6,6 +6,9 @@ RUN apt-get update -qq \
     && ln -sf "$(which python3)" /usr/local/bin/python \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Dependencias Python requeridas por PyFlink (protobuf = google namespace)
+RUN pip3 install --no-cache-dir protobuf==4.25.3 apache-flink==1.18.0
+
 # Kafka SQL Connector (para topics sensors_raw, sensors_clean, etc.)
 RUN curl -fsSL \
     "https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.1.0-1.18/flink-sql-connector-kafka-3.1.0-1.18.jar" \
@@ -17,7 +20,7 @@ RUN mkdir -p /opt/flink/plugins/flink-s3-fs-hadoop \
           /opt/flink/plugins/flink-s3-fs-hadoop/ 2>/dev/null || true
 
 # Configuración MinIO en flink-conf.yaml
-RUN printf '\n# MinIO S3 config (ILERNA)\ns3.endpoint: http://minio:9000\ns3.path.style.access: true\ns3.access-key: admin\ns3.secret-key: adminpassword\n' \
+RUN printf '\n# MinIO S3 config (ILERNA)\ns3.endpoint: http://minio:9000\ns3.path.style.access: true\ns3.access-key: admin\ns3.secret-key: Ilerna_Programaci0n\n' \
     >> /opt/flink/conf/flink-conf.yaml
 
 # Extraer pyflink.zip a un directorio real: el TaskManager ejecuta pyflink-udf-runner.sh

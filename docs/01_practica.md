@@ -87,46 +87,64 @@
 
 ## Guía paso a paso — Puesta en marcha completa
 
-### Paso 0 — Verificar el entorno Docker
+### Paso 0 — Arrancar el entorno
+
+`start.sh` se ejecuta automáticamente al abrir el Codespace y levanta todos los contenedores Docker. Cuando finalice, verás el mensaje `Infraestructura lista`.
+
+A continuación inicializa el pipeline (topics, bucket, jobs Flink):
 
 ```bash
-# Comprobar que todos los contenedores están healthy
-bash tests/test_connectivity.sh
+bash .devcontainer/init_pipeline.sh
+```
 
-# Si alguno falla, reiniciar el entorno:
+Para verificar que todo está healthy:
+
+```bash
+bash tests/test_connectivity.sh
+```
+
+Si algún servicio falla, reiniciar:
+```bash
 docker compose -f .devcontainer/docker-compose.yml down --remove-orphans
 docker compose -f .devcontainer/docker-compose.yml up -d
 ```
 
-### Paso 1 — Preparar Flink
+### Paso 1 — Verificar Flink
 
-Automático — `Dockerfile.jobmanager` incluye el JAR Kafka, Python 3 y el plugin S3. `start.sh` lanza los jobs al arrancar.
+`Dockerfile.jobmanager` incluye el JAR Kafka, protobuf y el plugin S3. `init_pipeline.sh` lanza los jobs al arrancar. Verifica:
 
-### Paso 2 — Crear los topics Kafka
+```bash
+# TaskManager registrado
+curl -s http://jobmanager:8081/taskmanagers | python3 -m json.tool | grep -i "id\|slots"
 
-Automático — `start.sh` crea los topics al arrancar. Para verificar:
+# Jobs corriendo
+flink-list
+```
+
+### Paso 2 — Verificar topics Kafka
+
+Creados automáticamente por `init_pipeline.sh`. Para verificar:
 
 ```bash
 RP=$(docker ps -qf "label=com.docker.compose.service=redpanda")
 docker exec $RP rpk topic list
 ```
 
-### Paso 3 — Crear bucket MinIO para el cold path
+### Paso 3 — Verificar bucket MinIO
 
-Automático — `start.sh` crea el bucket `datalake` al arrancar. Para verificar:
+Creado automáticamente por `init_pipeline.sh`. Para verificar:
 
 ```bash
 python3 -c "
 from minio import Minio
 c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
-if c.bucket_exists('datalake'):
-    print('Bucket datalake existe')
-else:
-    print('Bucket datalake NO existe')
+print('✅ Bucket datalake existe' if c.bucket_exists('datalake') else '❌ Bucket datalake NO existe')
 "
 ```
 
 ### Paso 4 — Lanzar los jobs Flink
+
+Lanzados automáticamente por `init_pipeline.sh`. Para lanzar manualmente o relanzar:
 
 ```bash
 JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
@@ -134,17 +152,17 @@ JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
 # Hito 2: Normalización + DLQ
 docker exec $JM flink run -py /opt/flink/jobs/flink_normalization_job.py &
 
-# Seguridad: Hash verifier
+# Aportación A1: Hash verifier
 docker exec $JM flink run -py /opt/flink/jobs/flink_hash_verifier_job.py &
 
 # Hito 3: Analítica + alertas → InfluxDB
 docker exec $JM flink run -py /opt/flink/jobs/flink_analytics_job.py &
 
-# Cold path: Flink → MinIO Parquet
+# Aportación A2: Cold path → MinIO Parquet
 docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py &
 
-# Verificar que los 4 jobs están RUNNING
-curl -s http://localhost:18081/jobs | python3 -m json.tool
+# Verificar los 4 jobs RUNNING
+flink-list
 ```
 
 ### Paso 5 — Arrancar el pipeline Python
@@ -152,43 +170,40 @@ curl -s http://localhost:18081/jobs | python3 -m json.tool
 Abre terminales separadas en Codespaces (botón `+` en el panel de terminales):
 
 ```bash
-# Terminal 1 — Simulador con hash-chaining + fallos
+# Terminal 1 — Simulador con hash-chaining + fallos (alias: sim)
 python src/01_ingestion/sensor_simulator.py --machines 5 --interval 2 --fault-rate 0.1
 
-# Terminal 2 — Bridge MQTT → Redpanda (Hito 1)
+# Terminal 2 — Bridge MQTT → Redpanda — Hito 1 (alias: bridge)
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
-# Terminal 3 — Archivador Python → MinIO (fallback del cold path)
-python src/03_storage/kafka_to_minio.py
+# Terminal 3 — FastAPI — Hito 4 (alias: api)
+uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# Terminal 4 — FastAPI (Hito 4)
-uvicorn src.04_api.main:app --host 0.0.0.0 --port 18000 --reload
-
-# Terminal 5 — Dashboard Streamlit (Hito 4)
-streamlit run src/05_ui/app.py --server.port 18501
+# Terminal 4 — Dashboard Streamlit — Hito 4 (alias: ui)
+streamlit run src/05_ui/app.py --server.port 8501
 ```
 
 ### Paso 6 — Entrenar el modelo de IA
 
 ```bash
 # Esperar al menos 2-3 minutos para acumular datos en InfluxDB
-curl -X POST "http://localhost:18000/model/train?range_minutes=5&contamination=0.1"
+curl -X POST "http://localhost:8000/model/train?range_minutes=5&contamination=0.1"
 
 # Verificar estado del modelo
-curl -s http://localhost:18000/model/status | python3 -m json.tool
+curl -s http://localhost:8000/model/status | python3 -m json.tool
 ```
 
 ### Paso 7 — Verificar el sistema completo
 
 ```bash
 # Estado de máquinas
-curl -s http://localhost:18000/machines/status | python3 -m json.tool
+curl -s http://localhost:8000/machines/status | python3 -m json.tool
 
 # Alertas activas
-curl -s http://localhost:18000/alerts | python3 -m json.tool
+curl -s http://localhost:8000/alerts | python3 -m json.tool
 
 # Predicción IA para machine-004 (la que suele superar 80°C)
-curl -s "http://localhost:18000/machines/machine-004/predict?temperature_c=85.0" | python3 -m json.tool
+curl -s "http://localhost:8000/machines/machine-004/predict?temperature_c=85.0" | python3 -m json.tool
 
 # Ver DLQ — mensajes rechazados
 docker exec $(docker ps -qf "label=com.docker.compose.service=redpanda") \
@@ -397,7 +412,7 @@ curl -s -X POST "http://localhost:18086/api/v2/query?org=ilerna" \
   -d 'from(bucket:"sensores") |> range(start:-5m) |> filter(fn:(r) => r._measurement=="machine_stats") |> last()'
 
 # Alertas via FastAPI
-curl -s http://localhost:18000/alerts | python3 -m json.tool
+curl -s http://localhost:8000/alerts | python3 -m json.tool
 ```
 
 ---
@@ -408,7 +423,7 @@ curl -s http://localhost:18000/alerts | python3 -m json.tool
 
 ```bash
 uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
-# Docs interactivos: http://localhost:18000/docs
+# Docs interactivos: http://localhost:8000/docs
 ```
 
 #### Endpoints completos
@@ -429,18 +444,18 @@ uvicorn src.04_api.main:app --host 0.0.0.0 --port 8000 --reload
 
 ```bash
 # Ver estado de todas las máquinas
-curl -s http://localhost:18000/machines/status | python3 -m json.tool
+curl -s http://localhost:8000/machines/status | python3 -m json.tool
 
 # Publicar lectura manual (200°F = 93.3°C → generará alerta)
-curl -X POST http://localhost:18000/machines/publish \
+curl -X POST http://localhost:8000/machines/publish \
   -H "Content-Type: application/json" \
   -d '{"device_id":"machine-001","temperature":200.0,"unit":"F"}'
 
 # Entrenar modelo con los últimos 10 minutos
-curl -X POST "http://localhost:18000/model/train?range_minutes=10&contamination=0.1"
+curl -X POST "http://localhost:8000/model/train?range_minutes=10&contamination=0.1"
 
 # Predecir si 85°C es anómalo para machine-004
-curl -s "http://localhost:18000/machines/machine-004/predict?temperature_c=85.0"
+curl -s "http://localhost:8000/machines/machine-004/predict?temperature_c=85.0"
 ```
 
 ---
@@ -449,7 +464,7 @@ curl -s "http://localhost:18000/machines/machine-004/predict?temperature_c=85.0"
 
 ```bash
 streamlit run src/05_ui/app.py --server.port 8501
-# Abrir: http://localhost:18501
+# Abrir: http://localhost:8501
 ```
 
 #### Pestañas del dashboard
@@ -687,15 +702,15 @@ La detección Edge es rápida pero rígida. La detección Cloud es flexible: apr
 
 ```bash
 # 1. Entrenar con 10 minutos de datos reales
-curl -X POST "http://localhost:18000/model/train?range_minutes=10"
+curl -X POST "http://localhost:8000/model/train?range_minutes=10"
 # → {"trained": true, "samples": 1200, "stats": {"mean": 72.4, "std": 8.1, ...}}
 
 # 2. Predecir temperatura normal (dentro del rango histórico)
-curl -s "http://localhost:18000/machines/machine-003/predict?temperature_c=58.0"
+curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=58.0"
 # → {"is_anomaly": false, "failure_prob": 0.02, "interpretation": "Temperatura normal..."}
 
 # 3. Predecir temperatura anómala (alta)
-curl -s "http://localhost:18000/machines/machine-003/predict?temperature_c=95.0"
+curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=95.0"
 # → {"is_anomaly": true, "failure_prob": 0.87, "interpretation": "Temperatura excepcionalmente ALTA..."}
 ```
 
