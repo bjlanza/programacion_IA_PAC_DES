@@ -6,8 +6,8 @@ RUN apt-get update -qq \
     && ln -sf "$(which python3)" /usr/local/bin/python \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Dependencias Python requeridas por PyFlink (protobuf = google namespace)
-RUN pip3 install --no-cache-dir protobuf==4.25.3 apache-flink==1.18.0
+# Dependencias Python requeridas por PyFlink
+RUN pip3 install --no-cache-dir apache-flink==1.18.0
 
 # Kafka SQL Connector (para topics sensors_raw, sensors_clean, etc.)
 RUN curl -fsSL \
