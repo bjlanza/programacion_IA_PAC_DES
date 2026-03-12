@@ -29,7 +29,7 @@ import urllib.error
 import urllib.request
 
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.datastream.functions import MapFunction, SinkFunction
+from pyflink.datastream.functions import MapFunction
 from pyflink.table import StreamTableEnvironment, DataTypes
 from pyflink.table.udf import udf
 
@@ -54,10 +54,13 @@ ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "80.0"))
 
 # ── Sink: escribe en InfluxDB vía HTTP Line Protocol ─────────
 
-class InfluxDBSink(SinkFunction):
+class InfluxDBWriter(MapFunction):
     """
     Escribe resultados de ventana en InfluxDB usando el Line Protocol
     a través de urllib (sin dependencias externas en el contenedor Flink).
+
+    Implementado como MapFunction en lugar de SinkFunction para compatibilidad
+    con PyFlink 1.17+ cuando el DataStream proviene de to_data_stream().
     """
 
     def __init__(self, url: str, token: str, org: str, bucket: str, threshold: float):
@@ -65,7 +68,7 @@ class InfluxDBSink(SinkFunction):
         self._token     = token
         self._threshold = threshold
 
-    def invoke(self, value, context):
+    def map(self, value):
         """
         value es una Row con:
           device_id, window_start, window_end, avg_temp_c, max_temp_c, count_readings
@@ -112,6 +115,8 @@ class InfluxDBSink(SinkFunction):
             log.error("InfluxDB error HTTP %s: %s", e.code, e.read().decode()[:200])
         except Exception as e:
             log.error("Error escribiendo en InfluxDB: %s", e)
+
+        return value
 
 
 # ── Main ──────────────────────────────────────────────────────
@@ -166,13 +171,15 @@ def main():
     ds = t_env.to_data_stream(result_table)
 
     # ── Sink: InfluxDB ────────────────────────────────────────
-    ds.add_sink(InfluxDBSink(
+    # MapFunction con efecto lateral + print() como sink dummy (PyFlink 1.17+
+    # no admite SinkFunction Python puro en DataStreams de to_data_stream())
+    ds.map(InfluxDBWriter(
         url=INFLUX_URL,
         token=INFLUX_TOKEN,
         org=INFLUX_ORG,
         bucket=INFLUX_BUCKET,
         threshold=ALERT_THRESHOLD,
-    ))
+    )).print()
 
     log.info("Ejecutando job de analítica...")
     env.execute("sensor-analytics-tumble-1min")

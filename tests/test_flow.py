@@ -36,8 +36,8 @@ MINIO_SECRET    = os.getenv("MINIO_SECRET",   "Ilerna_Programaci0n")
 MINIO_BUCKET    = "test-flow"
 
 GRAFANA_URL     = "http://grafana:3000"
-GRAFANA_USER    = "admin"
-GRAFANA_PASS    = "admin"
+GRAFANA_USER    = os.getenv("GRAFANA_USER", "admin")
+GRAFANA_PASS    = os.getenv("GRAFANA_PASS", "Ilerna_Programaci0n")
 
 # ── Helpers ──────────────────────────────────────────────────
 PASS = 0

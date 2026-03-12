@@ -14,7 +14,7 @@ Completa en orden: primero infraestructura, luego pipeline.
 
 - [ ] Estoy dentro del Codespace (terminal integrada de VS Code).
 - [ ] El script `start.sh` ha terminado mostrando `Infraestructura lista` (postStartCommand automático).
-- [ ] He ejecutado `bash .devcontainer/init_pipeline.sh` y muestra `Pipeline listo`.
+- [ ] He ejecutado `source .devcontainer/init_pipeline.sh` y muestra `Pipeline listo`.
 - [ ] Existe `.devcontainer/docker-compose.yml`.
 - [ ] Existe `config/mosquitto.conf` con `listener 1883 0.0.0.0` y `allow_anonymous true`.
 
@@ -153,6 +153,14 @@ docker exec $RP rpk topic create sensors_verified -p 1 -r 1
 - [ ] `sensors_invalid` creado (o ya existe) ✅  ← DLQ normalización
 - [ ] `sensors_verified` creado (o ya existe) ✅  ← Hash-Chain verificado
 
+### Verificar tópicos existentes
+```bash
+docker exec $RP rpk topic list
+```
+
+- [ ] `sensors_raw` en la lista ✅
+- [ ] `sensors_clean` en la lista ✅
+
 ### Produce → Consume en sensors_raw
 ```bash
 echo '{"device_id":"machine-test","temperature":176.0,"unit":"F","ts":"2026-01-01T00:00:00Z"}' | \
@@ -162,14 +170,6 @@ docker exec $RP rpk topic consume sensors_raw -n 1
 ```
 
 - [ ] El JSON aparece en el consume ✅
-
-### Verificar tópicos existentes
-```bash
-docker exec $RP rpk topic list
-```
-
-- [ ] `sensors_raw` en la lista ✅
-- [ ] `sensors_clean` en la lista ✅
 
 ---
 
@@ -401,20 +401,46 @@ for o in objs[:5]:
 
 ### A3 — IsolationForest (Detección de Anomalías ML)
 
+> **El entrenamiento es manual y bajo demanda.**
+> El modelo NO se entrena automáticamente al arrancar FastAPI.
+> Esto es intencional: el usuario elige la ventana temporal y el parámetro
+> de contaminación según el volumen de datos disponible.
+> El modelo entrenado se persiste en `/tmp/isolation_forest.pkl` y se
+> recarga automáticamente si FastAPI se reinicia (mientras el contenedor siga vivo).
+
+**Prerequisito:** el job `flink_analytics_job.py` debe llevar al menos 5 minutos
+corriendo para que haya datos en InfluxDB (`machine_stats`).
+
 ```bash
-# Entrenar el modelo vía FastAPI (necesita datos en InfluxDB)
-curl -s -X POST http://localhost:8000/model/train | python3 -m json.tool
+# 1. Verificar que hay datos antes de entrenar
+curl -s http://localhost:18000/model/status | python3 -m json.tool
 
-# Ver estado del modelo
-curl -s http://localhost:8000/model/status | python3 -m json.tool
+# 2. Entrenar el modelo con los últimos 60 minutos de datos
+#    contamination=0.1 → asume que ~10% de las lecturas son anómalas
+curl -s -X POST "http://localhost:18000/model/train?range_minutes=60&contamination=0.1" \
+  | python3 -m json.tool
 
-# Predecir para una temperatura alta (posible anomalía)
-curl -s "http://localhost:8000/machines/machine-001/predict?temperature_c=95.0" | python3 -m json.tool
+# Si hay pocos datos (pipeline recién iniciado), usar ventana más corta:
+curl -s -X POST "http://localhost:18000/model/train?range_minutes=10&contamination=0.1" \
+  | python3 -m json.tool
+
+# 3. Verificar estado del modelo tras el entrenamiento
+curl -s http://localhost:18000/model/status | python3 -m json.tool
+
+# 4a. Predecir temperatura NORMAL (70°C)
+curl -s "http://localhost:18000/machines/machine-001/predict?temperature_c=70.0" \
+  | python3 -m json.tool
+
+# 4b. Predecir temperatura ANÓMALA (95°C)
+curl -s "http://localhost:18000/machines/machine-001/predict?temperature_c=95.0" \
+  | python3 -m json.tool
 ```
 
-- [ ] `/model/train` responde `{"trained": true, "samples": N, "stats": {...}}` ✅
-- [ ] `/model/status` muestra `is_trained: true` y estadísticas del modelo ✅
-- [ ] `/machines/{id}/predict` devuelve `is_anomaly`, `failure_prob`, `interpretation` ✅
+- [ ] `/model/status` antes de entrenar muestra `"trained": false` ✅
+- [ ] `/model/train` responde `{"status": "trained", "samples": N, "stats": {...}}` ✅
+- [ ] `/model/status` tras entrenar muestra `"trained": true` con `mean`, `std`, `p5`, `p95` ✅
+- [ ] `/machines/{id}/predict?temperature_c=70` devuelve `"is_anomaly": false` ✅
+- [ ] `/machines/{id}/predict?temperature_c=95` devuelve `"is_anomaly": true` con `interpretation` ✅
 - [ ] En Streamlit pestaña "IA Anomalías" → se puede entrenar y predecir desde la UI ✅
 
 ---
@@ -438,6 +464,38 @@ Marca solo si **todo lo anterior** está completado:
 - [ ] A1 — Hash-Chain: `sensors_verified` recibe mensajes íntegros, `sensors_invalid` detecta cadena rota
 - [ ] A2 — Lambda Cold Path: MinIO `datalake/clean/` contiene Parquet particionado, DuckDB puede consultarlo
 - [ ] A3 — IsolationForest: modelo entrenado, predicción devuelve `failure_prob` y `interpretation`
+
+---
+
+## Fase 12 — Notebook de exploración de datos
+
+### Abrir Jupyter Lab
+
+```bash
+# Alias rápido (disponible tras source .devcontainer/init_pipeline.sh)
+nb
+
+# O manualmente:
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+```
+
+- [ ] Jupyter Lab accesible en puerto 18888 ✅
+
+### Ejecutar el notebook `notebooks/01_exploracion_datos.ipynb`
+
+```bash
+# Ejecutar todas las celdas desde línea de comandos
+jupyter nbconvert --to notebook --execute notebooks/01_exploracion_datos.ipynb \
+  --output notebooks/01_exploracion_datos_executed.ipynb
+```
+
+- [ ] Sección 2 — InfluxDB: `df_hot` tiene registros, gráfica de temperatura visible ✅
+- [ ] Sección 3 — MinIO: DuckDB conecta a `minio:9000` sin error ✅
+- [ ] Sección 4 — Lambda Query: `df_unified` contiene filas de al menos una fuente ✅
+- [ ] Sección 5 — IsolationForest: `/model/train` responde `trained: true` ✅
+- [ ] Sección 5 — Predicción 70°C: `is_anomaly: false` ✅
+- [ ] Sección 5 — Predicción 95°C: `is_anomaly: true` ✅
+- [ ] Sección 6 — Hash Chain: health check FastAPI responde `status: ok` ✅
 
 ---
 

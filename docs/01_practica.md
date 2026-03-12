@@ -28,7 +28,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │  REDPANDA (Kafka API)  :19092                                        │
 │  Topics: sensors_raw · sensors_clean · sensors_invalid              │
-│          sensors_verified · sensors_aggregated                      │
+│          sensors_verified                                           │
 └──────┬───────────────────┬───────────────────────────────────────────┘
        │                   │
        │ Flink Job A       │ Flink Job B (opcional, seguridad)
@@ -94,7 +94,7 @@
 A continuación inicializa el pipeline (topics, bucket, jobs Flink):
 
 ```bash
-bash .devcontainer/init_pipeline.sh
+source .devcontainer/init_pipeline.sh
 ```
 
 Para verificar que todo está healthy:
@@ -185,12 +185,30 @@ streamlit run src/05_ui/app.py --server.port 8501
 
 ### Paso 6 — Entrenar el modelo de IA
 
-```bash
-# Esperar al menos 2-3 minutos para acumular datos en InfluxDB
-curl -X POST "http://localhost:8000/model/train?range_minutes=5&contamination=0.1"
+> **El entrenamiento es manual.** El modelo IsolationForest no se entrena
+> automáticamente al arrancar FastAPI. Esto permite elegir la ventana temporal
+> y el parámetro de contaminación según los datos disponibles.
+> Una vez entrenado, el modelo se persiste en `/tmp/isolation_forest.pkl`
+> y se recarga automáticamente si FastAPI se reinicia (mientras el contenedor esté vivo).
 
-# Verificar estado del modelo
+```bash
+# Prerequisito: esperar al menos 5 min con el pipeline corriendo
+# para que haya datos en InfluxDB (measurement: machine_stats)
+
+# 1. Verificar estado antes de entrenar (debe mostrar "trained": false)
 curl -s http://localhost:8000/model/status | python3 -m json.tool
+
+# 2. Entrenar con los últimos 60 minutos de datos
+curl -X POST "http://localhost:8000/model/train?range_minutes=60&contamination=0.1" \
+  | python3 -m json.tool
+
+# Si el pipeline lleva poco tiempo y hay pocos datos, usar ventana corta:
+curl -X POST "http://localhost:8000/model/train?range_minutes=10&contamination=0.1" \
+  | python3 -m json.tool
+
+# 3. Confirmar que el modelo está entrenado
+curl -s http://localhost:8000/model/status | python3 -m json.tool
+# Respuesta esperada: {"trained": true, "samples": N, "contamination": 0.1, "stats": {...}}
 ```
 
 ### Paso 7 — Verificar el sistema completo
@@ -506,6 +524,46 @@ result = conn.execute("""
 
 ---
 
+### Jupyter Notebook — `notebooks/01_exploracion_datos.ipynb`
+
+Notebook de exploración de datos que cubre el pipeline completo:
+
+```bash
+# Abrir Jupyter (puerto 18888 en Codespaces)
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+```
+
+#### Secciones del notebook
+
+**Sección 1 — Conexión y configuración**
+- Imports, supresión de warnings y variables de conexión para InfluxDB, MinIO y FastAPI (hostnames internos del devcontainer)
+
+**Sección 2 — InfluxDB: machine_stats (Hot Path)**
+- Query Flux de los últimos 60 min con `pivot()` sobre el measurement `machine_stats`
+- Gráfica de líneas de `avg_temp_c` por `device_id` con umbral de alerta a 80°C
+- Gauges de temperatura actual por máquina
+- Tabla de estadísticas (media, máximo, alertas) por dispositivo
+
+**Sección 3 — MinIO: Cold Path Parquet**
+- DuckDB con extensión `httpfs` conectado a MinIO (`minio:9000`)
+- Query sobre `s3://datalake/clean/**/*.parquet` con `hive_partitioning=true`
+- Distribución de registros Parquet por dispositivo
+
+**Sección 4 — Lambda Query: UNION ALL Hot + Cold**
+- Query federada DuckDB que unifica InfluxDB (hot) y MinIO Parquet (cold) vía `UNION ALL`
+- Gráfica unificada coloreada por fuente de datos
+
+**Sección 5 — IsolationForest: Entrenamiento y Predicción**
+- `GET /model/status` — estado del modelo
+- `POST /model/train?range_minutes=60&contamination=0.1` — entrenamiento
+- Predicciones individuales (normal 70°C vs anómala 95°C)
+- Predicciones masivas sobre los últimos 30 min con scatter plot por `failure_prob`
+
+**Sección 6 — Hash Chain: Verificación de integridad**
+- Explicación del mecanismo SHA256 y los tópicos `sensors_verified` / `sensors_invalid`
+
+---
+
 ## Aportaciones avanzadas
 
 ### A1 — Hash-Chaining SHA256 (Seguridad e Integridad)
@@ -698,19 +756,40 @@ La detección Edge es rápida pero rígida. La detección Cloud es flexible: apr
    · Se normaliza a failure_prob ∈ [0.0, 1.0]
 ```
 
+#### Entrenamiento — siempre manual
+
+El modelo **no se entrena automáticamente** al arrancar FastAPI.
+Razón: el usuario debe decidir con qué ventana temporal entrenar
+(depende de cuánto tiempo lleva el pipeline corriendo) y qué tasa
+de contaminación usar (qué proporción de los datos considera anómalos).
+
+Una vez entrenado, el modelo se serializa en `/tmp/isolation_forest.pkl`
+y se recarga al reiniciar FastAPI, sin necesidad de re-entrenar
+mientras el contenedor Docker siga activo.
+
 #### Flujo completo de predicción
 
 ```bash
-# 1. Entrenar con 10 minutos de datos reales
-curl -X POST "http://localhost:8000/model/train?range_minutes=10"
-# → {"trained": true, "samples": 1200, "stats": {"mean": 72.4, "std": 8.1, ...}}
+# 0. Verificar estado antes de entrenar
+curl -s "http://localhost:8000/model/status" | python3 -m json.tool
+# → {"trained": false, "message": "Modelo no entrenado. Ejecuta POST /model/train primero."}
+
+# 1. Entrenar con datos reales (prerequisito: analytics job corriendo ≥5 min)
+curl -X POST "http://localhost:8000/model/train?range_minutes=60&contamination=0.1" \
+  | python3 -m json.tool
+# → {"status": "trained", "samples": 1200, "stats": {"mean": 72.4, "std": 8.1, ...}}
+
+# Si hay pocos datos (pipeline recién iniciado):
+curl -X POST "http://localhost:8000/model/train?range_minutes=10&contamination=0.1"
 
 # 2. Predecir temperatura normal (dentro del rango histórico)
-curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=58.0"
+curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=58.0" \
+  | python3 -m json.tool
 # → {"is_anomaly": false, "failure_prob": 0.02, "interpretation": "Temperatura normal..."}
 
 # 3. Predecir temperatura anómala (alta)
-curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=95.0"
+curl -s "http://localhost:8000/machines/machine-003/predict?temperature_c=95.0" \
+  | python3 -m json.tool
 # → {"is_anomaly": true, "failure_prob": 0.87, "interpretation": "Temperatura excepcionalmente ALTA..."}
 ```
 
@@ -815,21 +894,24 @@ DuckDB es un motor OLAP embebido (sin servidor), perfecto para análisis interac
 
 | Módulo | Librería | Versión | Uso |
 |--------|---------|---------|-----|
-| sensor_simulator | `paho-mqtt` | ≥2.0 | MQTT con CallbackAPIVersion.VERSION2 |
-| sensor_simulator | `hashlib` | stdlib | SHA256 hash-chaining |
-| mqtt_bridge | `paho-mqtt` | ≥2.0 | Suscripción MQTT |
-| mqtt_bridge | `confluent-kafka` | latest | Productor Kafka idempotente |
-| Flink jobs | `apache-flink` | 1.18.1 | PyFlink (en contenedor) |
-| Flink analytics | `urllib.request` | stdlib | HTTP a InfluxDB sin deps extras |
-| kafka_to_influx | `influxdb-client` | latest | Escritura SYNCHRONOUS |
-| kafka_to_minio | `minio` | latest | S3 API |
-| kafka_to_minio | `pyarrow` | latest | Serialización Parquet |
-| FastAPI | `fastapi`, `uvicorn` | latest | API REST asíncrona |
-| FastAPI | `influxdb-client` | latest | Consultas Flux |
-| FastAPI | `scikit-learn` | latest | IsolationForest |
-| FastAPI | `numpy` | ≥1.24 | Arrays para ML |
-| Streamlit | `streamlit` | latest | Dashboard interactivo |
-| Streamlit | `duckdb` | latest | Query federada Lambda |
-| Streamlit | `plotly` | latest | Gráficas interactivas |
-| Streamlit | `requests` | stdlib | Llamadas a FastAPI |
-| Notebooks | `jupyterlab` | latest | Exploración de datos |
+| `sensor_simulator.py` | `paho-mqtt` | ≥2.0 | MQTT con CallbackAPIVersion.VERSION2 |
+| `sensor_simulator.py` | `hashlib` | stdlib | SHA256 hash-chaining |
+| `mqtt_to_redpanda_bridge.py` | `paho-mqtt` | ≥2.0 | Suscripción MQTT |
+| `mqtt_to_redpanda_bridge.py` | `confluent-kafka` | latest | Productor Kafka idempotente |
+| `flink_normalization_job.py` | `apache-flink` | 1.18.0 | PyFlink Table API + UDF |
+| `flink_analytics_job.py` | `apache-flink` | 1.18.0 | Tumble Window + sink InfluxDB |
+| `flink_analytics_job.py` | `urllib.request` | stdlib | HTTP Line Protocol a InfluxDB (sin deps extras) |
+| `flink_hash_verifier_job.py` | `apache-flink` | 1.18.0 | DataStream KeyedProcessFunction |
+| `flink_to_minio_job.py` | `apache-flink` | 1.18.0 | FileSystem connector → MinIO Parquet |
+| `src/api/main.py` | `fastapi`, `uvicorn` | latest | API REST asíncrona |
+| `src/api/main.py` | `influxdb-client` | latest | Consultas Flux a InfluxDB |
+| `src/api/main.py` | `paho-mqtt` | ≥2.0 | Publicación manual vía MQTT |
+| `src/api/anomaly_model.py` | `scikit-learn` | latest | IsolationForest |
+| `src/api/anomaly_model.py` | `numpy` | ≥1.24 | Arrays para ML |
+| `src/05_ui/app.py` | `streamlit` | latest | Dashboard interactivo |
+| `src/05_ui/app.py` | `duckdb` | latest | Query federada Lambda (httpfs) |
+| `src/05_ui/app.py` | `plotly` | latest | Gráficas interactivas |
+| `src/05_ui/app.py` | `minio` | latest | Listado Parquet cold path |
+| `notebooks/*.ipynb` | `jupyterlab` | latest | Exploración de datos |
+| `notebooks/*.ipynb` | `duckdb` | latest | Query MinIO Parquet con httpfs |
+| `notebooks/*.ipynb` | `plotly` | latest | Visualización interactiva |

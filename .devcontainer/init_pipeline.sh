@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # init_pipeline.sh — Inicializa topics Kafka, bucket MinIO, jobs Flink y aliases
 # Ejecutar manualmente tras confirmar que la infraestructura está healthy:
-#   bash .devcontainer/init_pipeline.sh
+#   source .devcontainer/init_pipeline.sh
 
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -60,7 +60,7 @@ if [[ -n "${JM_ID}" ]]; then
   if [[ "${RUNNING_JOBS}" -gt 0 ]]; then
     echo -e "    ${YELLOW}ℹ️  ${RUNNING_JOBS} job(s) ya corriendo en Flink — saltando lanzamiento${NC}"
   else
-    for JOB in flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py; do
+    for JOB in flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py flink_to_minio_job.py; do
       echo -n "    Enviando ${JOB}..."
       docker exec "${JM_ID}" bash -c \
         "nohup flink run -py /opt/flink/jobs/${JOB} \
@@ -92,11 +92,15 @@ alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
 alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
+alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token="" --NotebookApp.password=""'
 # === fin ILERNA PAC DES helpers ===
 BASHRC_EOF
   echo -e "    ${GREEN}✅ Aliases de desarrollo añadidos a ~/.bashrc${NC}"
-  echo    "    Ejecuta: source ~/.bashrc"
 fi
+
+# Cargar aliases en el shell actual (funciona si el script se ejecuta con 'source')
+# shellcheck disable=SC1090
+source "${BASHRC}" 2>/dev/null || true
 
 # ── Banner final ─────────────────────────────────────────────
 echo ""
@@ -113,5 +117,5 @@ echo    "║  ⚪ Streamlit         → http://localhost:18501       ║"
 echo    "║  ⚪ Jupyter           → http://localhost:18888       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
-echo "    Aliases disponibles: sim | bridge | api | ui | flink-run | flink-list"
+echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list"
 echo ""

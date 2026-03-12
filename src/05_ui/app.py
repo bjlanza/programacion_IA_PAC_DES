@@ -19,6 +19,7 @@ Uso:
 
 import os
 import time
+import warnings
 
 import duckdb
 import pandas as pd
@@ -27,6 +28,9 @@ import plotly.graph_objects as go
 import requests
 import streamlit as st
 from influxdb_client import InfluxDBClient
+from influxdb_client.client.warnings import MissingPivotFunction
+
+warnings.simplefilter("ignore", MissingPivotFunction)
 
 # ── Configuración ─────────────────────────────────────────────
 INFLUX_URL    = os.getenv("INFLUX_URL",    "http://influxdb:8086")

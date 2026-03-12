@@ -122,7 +122,7 @@ El entorno arranca automáticamente. `start.sh` levanta Docker y espera a que to
 Una vez que `start.sh` finalice, ejecuta en el terminal:
 
 ```bash
-bash .devcontainer/init_pipeline.sh
+source .devcontainer/init_pipeline.sh
 ```
 
 Esto crea los topics Kafka, el bucket MinIO, lanza los jobs Flink y añade aliases de desarrollo.
@@ -144,6 +144,16 @@ streamlit run src/05_ui/app.py --server.port 8501
 ```
 
 > **Nota:** Los jobs Flink, topics Kafka y bucket MinIO se inicializan con `init_pipeline.sh`. Usa los aliases `sim`, `bridge`, `api`, `ui` como atajos.
+
+### 4b. Exploración de datos (Jupyter)
+
+```bash
+# Jupyter Lab (puerto 18888 en Codespaces)
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
+# Abrir: notebooks/01_exploracion_datos.ipynb
+```
+
+El notebook cubre: hot path (InfluxDB `machine_stats`), cold path (MinIO Parquet vía DuckDB), Lambda Query (UNION ALL hot+cold), entrenamiento y predicción del modelo IsolationForest, y verificación de la hash chain.
 
 ### 5. Acceder a las UIs
 
