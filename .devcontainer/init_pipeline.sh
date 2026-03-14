@@ -60,8 +60,12 @@ if [[ -n "${JM_ID}" ]]; then
   if [[ "${RUNNING_JOBS}" -gt 0 ]]; then
     echo -e "    ${YELLOW}ℹ️  ${RUNNING_JOBS} job(s) ya corriendo en Flink — saltando lanzamiento${NC}"
   else
-    for JOB in flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py flink_to_minio_job.py; do
-      echo -n "    Enviando ${JOB}..."
+    JOBS=(flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py flink_to_minio_job.py)
+    TOTAL=${#JOBS[@]}
+    IDX=0
+    for JOB in "${JOBS[@]}"; do
+      IDX=$((IDX + 1))
+      echo -n "    [${IDX}/${TOTAL}] Enviando ${JOB}..."
       docker exec "${JM_ID}" bash -c \
         "nohup flink run -py /opt/flink/jobs/${JOB} \
          > /tmp/flink_${JOB%.py}.log 2>&1 &" \

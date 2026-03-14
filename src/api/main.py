@@ -144,11 +144,12 @@ def machines_status(
             for r in table.records:
                 avg = r.values.get("avg_temp_c")
                 alert_flag = r.values.get("alert", 0)
+                ts_val = r.values.get("_time") or r.values.get("_start")
                 machines.append({
                     "device_id":   r.values.get("device_id"),
                     "avg_temp_c":  round(avg, 2) if avg is not None else None,
                     "alert":       bool(alert_flag),
-                    "ts":          r.get_time().isoformat() if r.get_time() else None,
+                    "ts":          ts_val.isoformat() if ts_val else None,
                 })
 
         return {

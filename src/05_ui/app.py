@@ -390,7 +390,7 @@ with tab_rt:
             "```"
         )
     else:
-        now_utc = pd.Timestamp.utcnow().tz_localize("UTC")
+        now_utc = pd.Timestamp.now(tz="UTC")
         cols = st.columns(len(status_df))
         for i, row in status_df.reset_index(drop=True).iterrows():
             temp = row.get("avg_temp_c", 0)

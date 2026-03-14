@@ -35,7 +35,7 @@ import os
 
 from pyflink.common import Types, WatermarkStrategy
 from pyflink.common.serialization import SimpleStringSchema
-from pyflink.datastream import StreamExecutionEnvironment, OutputTag
+from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.connectors.kafka import (
     DeliveryGuarantee,
     KafkaOffsetsInitializer,
@@ -58,9 +58,6 @@ KAFKA_VERIFIED = os.getenv("KAFKA_VERIFIED", "sensors_verified")
 KAFKA_DLQ      = os.getenv("KAFKA_DLQ",      "sensors_invalid")
 
 GENESIS_HASH = "0" * 64
-
-# OutputTag para mensajes con cadena rota (side output → DLQ)
-TAMPERED_TAG = OutputTag("tampered", Types.STRING())
 
 
 def compute_hash(payload: dict, prev_hash: str) -> str:
@@ -88,39 +85,36 @@ class HashChainVerifier(KeyedProcessFunction):
         try:
             data = json.loads(raw_msg)
         except json.JSONDecodeError:
-            # JSON inválido: no tiene hash, va al DLQ directamente
             bad = json.dumps({
                 "raw":    raw_msg[:500],
                 "reason": "JSON inválido en hash verifier",
             })
-            ctx.output(TAMPERED_TAG, bad)
+            yield "dlq", bad
             return
 
-        device_id      = data.get("device_id", "unknown")
         reported_hash  = data.get("hash", "")
         reported_prev  = data.get("prev_hash", GENESIS_HASH)
 
-        # Estado actual en Flink (último hash válido que vimos para este device)
         state_hash = self.last_hash_state.value() or GENESIS_HASH
 
-        # Verificación 1: ¿el prev_hash declarado coincide con nuestro estado?
+        # Verificación 1: prev_hash coincide con estado Flink
         if reported_prev != state_hash:
-            data["reason"]          = "hash_chain_broken: prev_hash no coincide con estado Flink"
-            data["expected_prev"]   = state_hash
-            ctx.output(TAMPERED_TAG, json.dumps(data))
+            data["reason"]        = "hash_chain_broken: prev_hash no coincide con estado Flink"
+            data["expected_prev"] = state_hash
+            yield "dlq", json.dumps(data)
             return
 
-        # Verificación 2: ¿el hash declarado es correcto?
+        # Verificación 2: hash declarado es correcto
         expected_hash = compute_hash(data, reported_prev)
         if reported_hash != expected_hash:
-            data["reason"]          = "hash_chain_broken: hash incorrecto (posible manipulación)"
-            data["expected_hash"]   = expected_hash
-            ctx.output(TAMPERED_TAG, json.dumps(data))
+            data["reason"]         = "hash_chain_broken: hash incorrecto (posible manipulación)"
+            data["expected_hash"]  = expected_hash
+            yield "dlq", json.dumps(data)
             return
 
-        # ✅ Cadena íntegra → actualizar estado y emitir al stream principal
+        # ✅ Cadena íntegra → actualizar estado y emitir
         self.last_hash_state.update(reported_hash)
-        yield raw_msg
+        yield "ok", raw_msg
 
 
 def main():
@@ -160,13 +154,20 @@ def main():
         if msg.startswith("{") else "unknown"
     )
 
-    verified_stream = keyed.process(HashChainVerifier(), Types.STRING())
+    tagged_stream = keyed.process(
+        HashChainVerifier(),
+        Types.TUPLE([Types.STRING(), Types.STRING()])
+    )
 
     # Stream principal → sensors_verified
-    verified_stream.sink_to(_kafka_sink(KAFKA_VERIFIED))
+    tagged_stream.filter(lambda t: t[0] == "ok") \
+                 .map(lambda t: t[1], Types.STRING()) \
+                 .sink_to(_kafka_sink(KAFKA_VERIFIED))
 
-    # Side output (mensajes con cadena rota) → DLQ
-    verified_stream.get_side_output(TAMPERED_TAG).sink_to(_kafka_sink(KAFKA_DLQ))
+    # DLQ → sensors_invalid
+    tagged_stream.filter(lambda t: t[0] == "dlq") \
+                 .map(lambda t: t[1], Types.STRING()) \
+                 .sink_to(_kafka_sink(KAFKA_DLQ))
 
     log.info("Hash verifier: %s → %s (DLQ: %s)", KAFKA_INPUT, KAFKA_VERIFIED, KAFKA_DLQ)
     env.execute("sensor-hash-chain-verifier")

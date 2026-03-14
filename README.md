@@ -109,6 +109,8 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │
 ├── config/
 │   ├── mosquitto.conf                  # Configuración MQTT broker
+│   ├── grafana/
+│   │   └── provisioning/               # Datasource e dashboard pre-provisionados
 │   └── requirements.txt               # Dependencias Python
 │
 ├── tests/
@@ -124,7 +126,9 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 
 ### 1. Abrir en GitHub Codespaces
 
-El entorno arranca automáticamente. `start.sh` levanta Docker y espera a que todos los servicios estén healthy (puede tardar 2-3 minutos).
+El entorno arranca automáticamente. `start.sh` levanta todos los contenedores Docker (incluido **Mosquitto**) y espera a que estén healthy. Puede tardar 2-3 minutos.
+
+FastAPI y Streamlit también arrancan automáticamente dentro del contenedor `workspace`.
 
 ### 2. Inicializar el pipeline (una vez por Codespace)
 
@@ -134,29 +138,54 @@ Una vez que `start.sh` finalice, ejecuta en el terminal:
 source .devcontainer/init_pipeline.sh
 ```
 
-Esto crea los **topics Kafka**, el **bucket MinIO**, lanza los **4 jobs Flink** y añade **aliases de desarrollo** al shell.
+Esto:
+- Crea los **topics Kafka** (`sensors_raw`, `sensors_clean`, `sensors_verified`, `sensors_invalid`)
+- Crea el **bucket MinIO** `datalake`
+- Lanza los **4 jobs Flink**
+- Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, ...)
 
-### 3. Arrancar el pipeline completo
-
-Abre 4 terminales (o usa `&` para background):
+Una vez que los aliases estén cargados, instala las herramientas de cliente MQTT (necesario una vez por Codespace) y suscríbete al topic para verificar que llegan mensajes:
 
 ```bash
-# Terminal 1 — Simulador de sensores
-sim   # equivale a: python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
-
-# Terminal 2 — Bridge MQTT → Redpanda
-bridge   # equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
-
-# Terminal 3 — FastAPI REST + modelo IA
-api   # equivale a: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Terminal 4 — Dashboard Streamlit
-ui   # equivale a: streamlit run src/05_ui/app.py --server.port 8501
+mqtt-install   # instala mosquitto-clients (una vez)
+mqtt-sub       # suscribe a sensors/telemetry — deberías ver mensajes JSON en tiempo real
 ```
 
-> Ver todos los aliases disponibles: escribe `aliases` en el terminal.
+### 3. Arrancar el simulador y el bridge
 
-### 4. Entrenar el modelo de anomalías (primera vez)
+> **Mosquitto** (broker MQTT), Redpanda, Flink, InfluxDB, MinIO, Grafana, FastAPI y Streamlit ya están corriendo en Docker.
+> Solo hace falta arrancar el simulador de sensores y el bridge MQTT→Redpanda.
+
+```bash
+# Terminal 1 — Simulador de sensores (publica en Mosquitto)
+sim
+# equivale a: python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
+
+# Terminal 2 — Bridge MQTT → Redpanda
+bridge
+# equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
+```
+
+En ~30 segundos empezarán a llegar datos a Redpanda y desde ahí Flink los procesará hacia InfluxDB y MinIO.
+
+### 4. Verificar estado del pipeline
+
+```bash
+# Jobs Flink (deben aparecer 4 RUNNING)
+flink-list
+
+# Datos en InfluxDB (últimos 5 min)
+curl -s -X POST "http://influxdb:8086/api/v2/query?org=ilerna" \
+  -H "Authorization: Token supersecrettoken" \
+  -H "Content-Type: application/vnd.flux" \
+  --data 'from(bucket:"sensores") |> range(start: -5m) |> count()'
+
+# API REST
+curl -s http://localhost:8000/machines/status | python3 -m json.tool
+curl -s http://localhost:8000/alerts | python3 -m json.tool
+```
+
+### 5. Entrenar el modelo de anomalías (primera vez)
 
 Una vez que haya datos fluyendo (~1 min), entrena el modelo IsolationForest:
 
@@ -166,48 +195,77 @@ curl -s -X POST http://localhost:8000/model/train | python3 -m json.tool
 
 O desde el dashboard Streamlit → pestaña **🤖 IA Anomalías** → botón **Entrenar modelo**.
 
-### 5. Acceder a las UIs
+### 6. Acceder a las UIs
 
-Desde la pestaña **Ports** de Codespaces o en local:
+Desde la pestaña **Ports** de Codespaces:
 
-| Interfaz          | URL                         | Descripción                    |
-|-------------------|-----------------------------|--------------------------------|
-| Streamlit         | http://localhost:18501      | Dashboard principal            |
-| FastAPI docs      | http://localhost:18000/docs | API interactiva (Swagger)      |
-| JupyterLab        | http://localhost:18888      | Notebooks de análisis          |
-| Flink UI          | http://localhost:18081      | Jobs y métricas Flink          |
-| Redpanda Console  | http://localhost:18080      | Topics Kafka y mensajes        |
-| InfluxDB          | http://localhost:18086      | Series temporales (hot path)   |
-| MinIO Console     | http://localhost:19001      | Archivos Parquet (cold path)   |
-| Grafana           | http://localhost:13000      | Dashboards (sin login)         |
+| Interfaz          | Puerto | Descripción                    |
+|-------------------|--------|--------------------------------|
+| Streamlit         | 18501  | Dashboard principal            |
+| FastAPI docs      | 18000  | API interactiva (`/docs`)      |
+| Grafana           | 13000  | Dashboards (sin login)         |
+| Flink UI          | 18081  | Jobs y métricas Flink          |
+| Redpanda Console  | 18080  | Topics Kafka y mensajes        |
+| JupyterLab        | 18888  | Notebooks de análisis          |
+| InfluxDB          | 18086  | Series temporales (hot path)   |
+| MinIO Console     | 19001  | Archivos Parquet (cold path)   |
 
-### 6. JupyterLab (análisis ad-hoc)
+### 7. JupyterLab (análisis ad-hoc)
 
 ```bash
-nb   # equivale a: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token="" ...
+nb
 # Abrir: notebooks/01_exploracion_datos.ipynb
 ```
 
 El notebook cubre: hot path (InfluxDB), cold path (MinIO Parquet vía DuckDB), Lambda Query (UNION ALL), entrenamiento IsolationForest y verificación de hash-chain.
 
+## Resolución de problemas
+
+### Flink jobs caídos
+
+Si `flink-list` muestra menos de 4 jobs `RUNNING`:
+
+```bash
+# Ver qué job falló y su causa
+curl -s http://jobmanager:8081/jobs | python3 -m json.tool
+
+# Relanzar un job específico (ejemplo: hash verifier)
+docker exec $(docker ps -qf label=com.docker.compose.service=jobmanager) \
+  flink run -py /opt/flink/jobs/flink_hash_verifier_job.py
+
+# Relanzar todos los jobs (desde init_pipeline.sh)
+source .devcontainer/init_pipeline.sh
+```
+
+### Sin datos en Grafana
+
+1. Verifica que `sim` y `bridge` están corriendo: `ps aux | grep -E "simulator|bridge"`
+2. Verifica topics con mensajes en Redpanda Console (puerto 18080)
+3. Verifica que los 4 jobs Flink están `RUNNING`: `flink-list`
+4. Ajusta el rango de tiempo en Grafana (selector arriba a la derecha)
+
+### Sin datos en MinIO
+
+El bucket `datalake` se llena a través de `flink_to_minio_job`. Verifica que ese job esté `RUNNING` con `flink-list`. Los archivos Parquet aparecen en `datalake/clean/year=.../month=.../day=.../hour=.../`.
+
 ## Topics Kafka
 
-| Topic               | Productor                 | Consumidor(es)                         | Contenido                                           |
-|---------------------|---------------------------|----------------------------------------|-----------------------------------------------------|
-| `sensors/telemetry` | sensor_simulator          | mqtt_to_redpanda_bridge                | MQTT raw (C/F/K, fallos posibles)                   |
+| Topic               | Productor                 | Consumidor(es)                           | Contenido                                           |
+|---------------------|---------------------------|------------------------------------------|-----------------------------------------------------|
+| `sensors/telemetry` | sensor_simulator          | mqtt_to_redpanda_bridge                  | MQTT raw (C/F/K, fallos posibles)                   |
 | `sensors_raw`       | mqtt_to_redpanda_bridge   | flink_normalization, flink_hash_verifier | `{device_id, temperature, unit, ts, hash, prev_hash}` |
-| `sensors_clean`     | flink_normalization_job   | flink_analytics_job, flink_to_minio    | `{device_id, temperature_c, unit_original, ts}`     |
-| `sensors_verified`  | flink_hash_verifier_job   | —                                      | Mensajes con hash-chain íntegra                     |
-| `sensors_invalid`   | flink_hash_verifier_job   | —                                      | DLQ: mensajes con hash roto o JSON inválido         |
+| `sensors_clean`     | flink_normalization_job   | flink_analytics_job, flink_to_minio      | `{device_id, temperature_c, unit_original, ts}`     |
+| `sensors_verified`  | flink_hash_verifier_job   | —                                        | Mensajes con hash-chain íntegra                     |
+| `sensors_invalid`   | flink_hash_verifier_job   | —                                        | DLQ: mensajes con hash roto o JSON inválido         |
 
 ## Jobs Flink
 
-| Job                        | Entrada          | Salida                        | Descripción                          |
-|----------------------------|------------------|-------------------------------|--------------------------------------|
-| flink_normalization_job    | sensors_raw      | sensors_clean                 | Normaliza unidades a °C              |
-| flink_analytics_job        | sensors_clean    | InfluxDB (machine_stats)      | Ventana 1 min, alertas > 80°C        |
-| flink_hash_verifier_job    | sensors_raw      | sensors_verified/sensors_invalid | Verifica integridad SHA256        |
-| flink_to_minio_job         | sensors_clean    | MinIO datalake/clean/         | Parquet particionado (cold path)     |
+| Job                        | Entrada          | Salida                           | Descripción                          |
+|----------------------------|------------------|----------------------------------|--------------------------------------|
+| flink_normalization_job    | sensors_raw      | sensors_clean                    | Normaliza unidades a °C              |
+| flink_analytics_job        | sensors_clean    | InfluxDB (machine_stats)         | Ventana 1 min, alertas > 80°C        |
+| flink_hash_verifier_job    | sensors_raw      | sensors_verified / sensors_invalid | Verifica integridad SHA256         |
+| flink_to_minio_job         | sensors_clean    | MinIO datalake/clean/            | Parquet particionado (cold path)     |
 
 ## Variables de entorno principales
 

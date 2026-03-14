@@ -34,7 +34,7 @@ import logging
 import os
 
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.table import StreamTableEnvironment, DataTypes
+from pyflink.table import StreamTableEnvironment
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -109,7 +109,7 @@ def main():
         'path'        = 's3a://{S3_BUCKET}/{S3_PATH}/',
         'format'      = 'parquet',
         'parquet.compression' = 'SNAPPY',
-        'sink.partition-commit.trigger'               = 'watermark',
+        'sink.partition-commit.trigger'               = 'partition-time',
         'sink.partition-commit.delay'                 = '1 min',
         'sink.partition-commit.policy.kind'           = 'success-file',
         'sink.rolling-policy.rollover-interval'       = '10 min',
