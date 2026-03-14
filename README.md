@@ -151,10 +151,10 @@ mqtt-install   # instala mosquitto-clients (una vez)
 mqtt-sub       # suscribe a sensors/telemetry — deberías ver mensajes JSON en tiempo real
 ```
 
-### 3. Arrancar el simulador y el bridge
+### 3. Arrancar el pipeline completo
 
-> **Mosquitto** (broker MQTT), Redpanda, Flink, InfluxDB, MinIO, Grafana, FastAPI y Streamlit ya están corriendo en Docker.
-> Solo hace falta arrancar el simulador de sensores y el bridge MQTT→Redpanda.
+> **Mosquitto**, Redpanda, Flink, InfluxDB, MinIO y Grafana ya están corriendo en Docker.
+> Los siguientes procesos hay que lanzarlos manualmente en terminales separadas:
 
 ```bash
 # Terminal 1 — Simulador de sensores (publica en Mosquitto)
@@ -164,6 +164,14 @@ sim
 # Terminal 2 — Bridge MQTT → Redpanda
 bridge
 # equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
+
+# Terminal 3 — FastAPI REST + modelo IA
+api
+# equivale a: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 4 — Dashboard Streamlit
+ui
+# equivale a: streamlit run src/05_ui/app.py --server.port 8501
 ```
 
 En ~30 segundos empezarán a llegar datos a Redpanda y desde ahí Flink los procesará hacia InfluxDB y MinIO.

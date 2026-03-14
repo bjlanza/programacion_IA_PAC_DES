@@ -37,7 +37,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. Kafka SQL Connector ────────────────────────────────────
-echo ">>> [1/3] Kafka SQL Connector (para sensors_raw, sensors_clean, etc.)"
+echo ">>> [1/4] Kafka SQL Connector (para sensors_raw, sensors_clean, etc.)"
 # Los conectores Flink usan versión menor (1.18), no la patch (1.18.1)
 FLINK_MINOR="$(echo ${FLINK_VERSION} | cut -d. -f1-2)"
 KAFKA_VERSION="3.1.0-${FLINK_MINOR}"
@@ -46,9 +46,17 @@ download_if_missing "Kafka connector" \
   "https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/${KAFKA_VERSION}/${KAFKA_JAR}" \
   "${TARGET_LIB}/${KAFKA_JAR}"
 
-# ── 2. S3 FileSystem Plugin (para flink_to_minio_job.py) ─────
+# ── 2. Parquet Format JAR (para flink_to_minio_job.py) ───────
 echo ""
-echo ">>> [2/3] S3 Hadoop Plugin (para escribir Parquet en MinIO)"
+echo ">>> [2/4] Parquet Format JAR (para escribir archivos .parquet)"
+PARQUET_JAR="flink-parquet-${FLINK_VERSION}.jar"
+download_if_missing "Parquet format" \
+  "https://repo1.maven.org/maven2/org/apache/flink/flink-parquet/${FLINK_VERSION}/${PARQUET_JAR}" \
+  "${TARGET_LIB}/${PARQUET_JAR}"
+
+# ── 3. S3 FileSystem Plugin (para flink_to_minio_job.py) ─────
+echo ""
+echo ">>> [3/4] S3 Hadoop Plugin (para escribir Parquet en MinIO)"
 
 S3_JAR="flink-s3-fs-hadoop-${FLINK_VERSION}.jar"
 S3_PLUGIN_DIR="${TARGET_PLUGINS}/flink-s3-fs-hadoop"
@@ -72,7 +80,7 @@ fi
 
 # ── 3. Configurar MinIO (S3-compatible) en flink-conf.yaml ────
 echo ""
-echo ">>> [3/3] Configurando S3 endpoint para MinIO en flink-conf.yaml"
+echo ">>> [4/4] Configurando S3 endpoint para MinIO en flink-conf.yaml"
 
 FLINK_CONF="/opt/flink/conf/flink-conf.yaml"
 S3_CONF_MARKER="# MinIO S3 config (ILERNA)"
