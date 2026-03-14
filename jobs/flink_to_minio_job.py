@@ -107,8 +107,7 @@ def main():
     WITH (
         'connector'   = 'filesystem',
         'path'        = 's3a://{S3_BUCKET}/{S3_PATH}/',
-        'format'      = 'parquet',
-        'parquet.compression' = 'SNAPPY',
+        'format'      = 'json',
         'sink.partition-commit.trigger'               = 'partition-time',
         'sink.partition-commit.delay'                 = '1 min',
         'sink.partition-commit.policy.kind'           = 'success-file',

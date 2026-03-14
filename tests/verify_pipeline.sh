@@ -72,7 +72,7 @@ fi
 section "Hash Chain (sensors_verified / sensors_invalid)"
 if [[ -n "$RP" ]]; then
     # sensors_verified — debe tener campos hash y prev_hash
-    VERIFIED=$(docker exec "$RP" rpk topic consume sensors_verified -n 1 --offset oldest 2>/dev/null \
+    VERIFIED=$(timeout 5 docker exec "$RP" rpk topic consume sensors_verified -n 1 --offset oldest 2>/dev/null \
         | python3 -c "
 import sys, json
 for line in sys.stdin:
@@ -94,7 +94,7 @@ for line in sys.stdin:
     fi
 
     # sensors_invalid — razones de rechazo
-    INVALID=$(docker exec "$RP" rpk topic consume sensors_invalid -n 5 --offset oldest 2>/dev/null \
+    INVALID=$(timeout 5 docker exec "$RP" rpk topic consume sensors_invalid -n 5 --offset oldest 2>/dev/null \
         | python3 -c "
 import sys, json, collections
 reasons = []
@@ -150,25 +150,25 @@ for row in reader:
     fi
 fi
 
-# ── 5. MinIO — Parquet cold path ──────────────────────────────
-section "MinIO — Parquet (cold path)"
-PARQUET_COUNT=$(python3 -c "
+# ── 5. MinIO — cold path ──────────────────────────────────────
+section "MinIO — cold path (JSON)"
+FILE_COUNT=$(python3 -c "
 from minio import Minio
 try:
     c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
     objs = list(c.list_objects('datalake', recursive=True))
-    parquets = [o for o in objs if o.object_name.endswith('.parquet')]
-    print(len(parquets))
+    files = [o for o in objs if o.object_name.endswith('.json') or o.object_name.endswith('.parquet')]
+    print(len(files))
 except Exception as e:
     print(f'ERROR:{e}')
 " 2>/dev/null)
 
-if echo "$PARQUET_COUNT" | grep -q "ERROR"; then
-    fail "MinIO datalake" "$PARQUET_COUNT"
-elif [[ "${PARQUET_COUNT:-0}" -gt 0 ]]; then
-    ok "Parquet en MinIO" "$PARQUET_COUNT archivo(s)"
+if echo "$FILE_COUNT" | grep -q "ERROR"; then
+    fail "MinIO datalake" "$FILE_COUNT"
+elif [[ "${FILE_COUNT:-0}" -gt 0 ]]; then
+    ok "Archivos en MinIO" "$FILE_COUNT archivo(s)"
 else
-    warn "Parquet en MinIO" "0 archivos (flink_to_minio_job tarda ~10 min en emitir)"
+    warn "MinIO datalake" "0 archivos (flink_to_minio_job tarda ~10 min en emitir)"
 fi
 
 # ── 6. FastAPI ────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-FROM flink:1.18.1-scala_2.12-java11
+FROM flink:1.18.1-scala_2.12-java17
 
 # Python 3 (requerido para PyFlink)
 RUN apt-get update -qq \
@@ -18,6 +18,11 @@ RUN curl -fsSL \
 RUN mkdir -p /opt/flink/plugins/flink-s3-fs-hadoop \
     && cp /opt/flink/opt/flink-s3-fs-hadoop-1.18.1.jar \
           /opt/flink/plugins/flink-s3-fs-hadoop/ 2>/dev/null || true
+
+# Hadoop shaded (requerido por el plugin S3 en runtime)
+RUN curl -fsSL \
+    "https://repo1.maven.org/maven2/org/apache/flink/flink-shaded-hadoop-2-uber/2.8.3-10.0/flink-shaded-hadoop-2-uber-2.8.3-10.0.jar" \
+    -o /opt/flink/lib/flink-shaded-hadoop-2-uber.jar
 
 # Configuración MinIO en flink-conf.yaml
 RUN printf '\n# MinIO S3 config (ILERNA)\ns3.endpoint: http://minio:9000\ns3.path.style.access: true\ns3.access-key: admin\ns3.secret-key: Ilerna_Programaci0n\n' \
