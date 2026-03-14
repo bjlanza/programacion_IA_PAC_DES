@@ -1,5 +1,9 @@
 apiVersion: 1
 
+deleteDatasources:
+  - name: Infinity
+    orgId: 1
+
 datasources:
   - name: InfluxDB
     uid: influxdb
@@ -15,3 +19,9 @@ datasources:
       tlsSkipVerify: true
     secureJsonData:
       token: supersecrettoken
+
+  - name: Infinity
+    uid: infinity
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    editable: true

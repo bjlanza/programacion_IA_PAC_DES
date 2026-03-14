@@ -50,7 +50,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
                        │               🤖 IA Anomalías
                        │
                        └──▶ [flink_to_minio_job.py]        ← Cold path
-                              · Parquet particionado por fecha
+                              · JSON particionado por fecha
                               · s3a://datalake/clean/year=.../
                                       │
                                       └──▶ [MinIO]  :19000/:19001
@@ -102,7 +102,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │   ├── flink_normalization_job.py      # Hito 2: Table API + UDF to_celsius
 │   ├── flink_analytics_job.py          # Hito 3: Tumble Window + alertas InfluxDB
 │   ├── flink_hash_verifier_job.py      # Seguridad: SHA256 hash-chain por device
-│   └── flink_to_minio_job.py           # Cold path: Parquet particionado en MinIO
+│   └── flink_to_minio_job.py           # Cold path: JSON particionado en MinIO
 │
 ├── notebooks/
 │   └── 01_exploracion_datos.ipynb      # Exploración con Plotly + InfluxDB + DuckDB
@@ -273,7 +273,7 @@ El bucket `datalake` se llena a través de `flink_to_minio_job`. Verifica que es
 | flink_normalization_job    | sensors_raw      | sensors_clean                    | Normaliza unidades a °C              |
 | flink_analytics_job        | sensors_clean    | InfluxDB (machine_stats)         | Ventana 1 min, alertas > 80°C        |
 | flink_hash_verifier_job    | sensors_raw      | sensors_verified / sensors_invalid | Verifica integridad SHA256         |
-| flink_to_minio_job         | sensors_clean    | MinIO datalake/clean/            | Parquet particionado (cold path)     |
+| flink_to_minio_job         | sensors_clean    | MinIO datalake/clean/            | JSON particionado (cold path)     |
 
 ## Variables de entorno principales
 

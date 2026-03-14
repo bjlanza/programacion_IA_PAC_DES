@@ -1,0 +1,245 @@
+{
+  "uid": "ilerna-redpanda",
+  "title": "ILERNA Smart-Industry — Redpanda / Kafka",
+  "tags": ["redpanda", "kafka", "pipeline"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-30m", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Brokers activos",
+      "gridPos": {"x": 0, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["count"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "green"},
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/brokers",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "node_id", "text": "Node ID", "type": "number"},
+            {"selector": "num_cores", "text": "Cores", "type": "number"},
+            {"selector": "membership_status", "text": "Estado", "type": "string"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Topics del pipeline",
+      "gridPos": {"x": 4, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["count"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "blue"},
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "name", "text": "Topic", "type": "string"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Estado del cluster",
+      "gridPos": {"x": 8, "y": 0, "w": 4, "h": 4},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "green"},
+          "noValue": "—"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/cluster",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "raft_group_id", "text": "Raft Group", "type": "number"},
+            {"selector": "ntp.topic", "text": "Topic", "type": "string"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Brokers — detalle",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "cellHeight": "sm",
+        "footer": {"show": false}
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/brokers",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "node_id", "text": "Node ID", "type": "number"},
+            {"selector": "num_cores", "text": "Cores", "type": "number"},
+            {"selector": "membership_status", "text": "Membresía", "type": "string"},
+            {"selector": "is_alive", "text": "Activo", "type": "boolean"},
+            {"selector": "internal_rpc_address.address", "text": "Host", "type": "string"},
+            {"selector": "internal_rpc_address.port", "text": "Puerto RPC", "type": "number"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Topics — lista",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 10},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "cellHeight": "sm",
+        "footer": {"show": false}
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Topic"},
+            "properties": [
+              {"id": "custom.width", "value": 300},
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "name", "text": "Topic", "type": "string"},
+            {"selector": "partitions_count", "text": "Particiones", "type": "number"},
+            {"selector": "replication_factor", "text": "Réplicas", "type": "number"},
+            {"selector": "is_internal", "text": "Interno", "type": "boolean"},
+            {"selector": "compression", "text": "Compresión", "type": "string"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Mensajes por topic (watermark)",
+      "description": "High-watermark = total mensajes escritos en cada partición",
+      "gridPos": {"x": 0, "y": 10, "w": 24, "h": 7},
+      "datasource": {"type": "yesoreyeram-infinity-datasource", "uid": "infinity"},
+      "options": {
+        "cellHeight": "sm",
+        "footer": {"show": false}
+      },
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "Mensajes"},
+            "properties": [
+              {"id": "custom.displayMode", "value": "lcd-gauge"},
+              {"id": "color", "value": {"mode": "continuous-BlPu"}},
+              {"id": "min", "value": 0}
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "sensors_raw",
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics/sensors_raw/partitions/0/replicas",
+          "url_options": {"method": "GET"},
+          "root_selector": "",
+          "columns": [
+            {"selector": "high_watermark", "text": "Mensajes", "type": "number"}
+          ],
+          "parser": "backend"
+        }
+      ]
+    }
+  ]
+}

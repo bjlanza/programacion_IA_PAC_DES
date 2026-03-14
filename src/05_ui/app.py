@@ -186,42 +186,48 @@ def _init_duckdb_s3(conn: duckdb.DuckDBPyConnection):
 
 @st.cache_data(ttl=120, show_spinner="Cargando datos históricos desde MinIO...")
 def query_cold_path() -> pd.DataFrame:
-    """Lee Parquet desde MinIO/cold path (flink_to_minio_job o kafka_to_minio)."""
+    """Lee JSON desde MinIO/cold path (flink_to_minio_job)."""
     conn = duckdb.connect()
     try:
         _init_duckdb_s3(conn)
-        # Intenta primero la ruta particionada de Flink (hive_partitioning)
+        # Ruta particionada de Flink (JSON con hive_partitioning)
         try:
             df = conn.execute(f"""
                 SELECT device_id,
                        CAST(temperature_c AS DOUBLE) AS value,
                        ts,
                        year, month, day, hour
-                FROM read_parquet(
-                    's3://{MINIO_BUCKET}/clean/**/*.parquet',
-                    hive_partitioning = true
+                FROM read_json(
+                    's3://{MINIO_BUCKET}/clean/**/*.json',
+                    hive_partitioning = true,
+                    auto_detect = true
                 )
                 WHERE temperature_c IS NOT NULL
             """).df()
             if not df.empty:
-                df["source"] = "flink-parquet"
+                df["source"] = "flink-json"
                 return df
         except Exception:
             pass
         # Fallback: ruta del writer Python (kafka_to_minio.py)
-        df = conn.execute(f"""
-            SELECT device_id,
-                   CAST(value AS DOUBLE) AS value,
-                   ts,
-                   strftime(CAST(ts AS TIMESTAMP), '%Y') AS year,
-                   strftime(CAST(ts AS TIMESTAMP), '%m') AS month,
-                   strftime(CAST(ts AS TIMESTAMP), '%d') AS day,
-                   strftime(CAST(ts AS TIMESTAMP), '%H') AS hour
-            FROM read_parquet('s3://{MINIO_BUCKET}/raw/**/*.parquet', hive_partitioning=false)
-            WHERE value IS NOT NULL
-        """).df()
-        df["source"] = "python-parquet"
-        return df
+        try:
+            df = conn.execute(f"""
+                SELECT device_id,
+                       CAST(value AS DOUBLE) AS value,
+                       ts,
+                       strftime(CAST(ts AS TIMESTAMP), '%Y') AS year,
+                       strftime(CAST(ts AS TIMESTAMP), '%m') AS month,
+                       strftime(CAST(ts AS TIMESTAMP), '%d') AS day,
+                       strftime(CAST(ts AS TIMESTAMP), '%H') AS hour
+                FROM read_parquet('s3://{MINIO_BUCKET}/raw/**/*.parquet', hive_partitioning=false)
+                WHERE value IS NOT NULL
+            """).df()
+            if not df.empty:
+                df["source"] = "python-parquet"
+                return df
+        except Exception:
+            pass
+        return pd.DataFrame()
     except Exception:
         return pd.DataFrame()
     finally:
