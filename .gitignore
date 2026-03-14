@@ -29,5 +29,20 @@ Thumbs.db
 # Docker / Devcontainers (ignorar datos persistentes si están dentro del proyecto, aunque en compose se usaron volúmenes nombrados, siempre es buena práctica)
 *-data/
 
+# Build / dist
+dist/
+build/
+*.egg-info/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDEs
+.idea/
+*.swp
+*.swo
+
 # Claude Code
 .claude/

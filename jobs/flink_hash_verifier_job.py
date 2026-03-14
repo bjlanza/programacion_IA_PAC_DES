@@ -84,7 +84,7 @@ class HashChainVerifier(KeyedProcessFunction):
         descriptor = ValueStateDescriptor("last_valid_hash", Types.STRING())
         self.last_hash_state = runtime_context.get_state(descriptor)
 
-    def process_element(self, raw_msg: str, ctx, out):
+    def process_element(self, raw_msg: str, ctx):
         try:
             data = json.loads(raw_msg)
         except json.JSONDecodeError:
@@ -120,7 +120,7 @@ class HashChainVerifier(KeyedProcessFunction):
 
         # ✅ Cadena íntegra → actualizar estado y emitir al stream principal
         self.last_hash_state.update(reported_hash)
-        out.collect(raw_msg)
+        yield raw_msg
 
 
 def main():

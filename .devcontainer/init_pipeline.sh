@@ -92,7 +92,21 @@ alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
 alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
-alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token="" --NotebookApp.password=""'
+alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token="" --ServerApp.password="" --NotebookApp.token="" --NotebookApp.password=""'
+alias mqtt-install='sudo apt-get update -qq && sudo apt-get install -y mosquitto-clients'
+alias mqtt-sub='mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v'
+alias aliases='echo "
+  sim          → Simulador de sensores (5 máquinas, fault-rate 0.1)
+  bridge       → Puente MQTT → Redpanda
+  api          → FastAPI en :8000
+  ui           → Streamlit dashboard en :8501
+  nb           → JupyterLab en :8888
+  flink-run    → flink run dentro del jobmanager
+  flink-list   → Lista jobs Flink activos
+  mqtt-install → Instala mosquitto-clients
+  mqtt-sub     → Suscribe a sensors/telemetry
+  aliases      → Muestra esta ayuda
+"'
 # === fin ILERNA PAC DES helpers ===
 BASHRC_EOF
   echo -e "    ${GREEN}✅ Aliases de desarrollo añadidos a ~/.bashrc${NC}"
@@ -117,5 +131,5 @@ echo    "║  ⚪ Streamlit         → http://localhost:18501       ║"
 echo    "║  ⚪ Jupyter           → http://localhost:18888       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
-echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list"
+echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list | mqtt-install | mqtt-sub"
 echo ""

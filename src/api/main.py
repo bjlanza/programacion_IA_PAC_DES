@@ -59,6 +59,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def root():
+    return """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>ILERNA Smart-Industry API</title>
+<style>body{font-family:monospace;max-width:600px;margin:60px auto;padding:0 20px}
+a{color:#0066cc}code{background:#f4f4f4;padding:2px 6px;border-radius:3px}</style>
+</head><body>
+<h2>ILERNA Smart-Industry — Sensor API</h2>
+<p>Pipeline de monitorización de temperatura industrial en tiempo real.</p>
+<ul>
+  <li><a href="/docs">📖 Documentación interactiva (Swagger UI)</a></li>
+  <li><a href="/redoc">📄 Documentación alternativa (ReDoc)</a></li>
+  <li><a href="/health">❤️ Health check</a></li>
+  <li><a href="/machines/status">🏭 Estado de máquinas</a></li>
+  <li><a href="/alerts">⚠️ Alertas activas</a></li>
+</ul>
+<p><code>uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload</code></p>
+</body></html>"""
+
 # ── Modelos ───────────────────────────────────────────────────
 
 class MachineReading(BaseModel):

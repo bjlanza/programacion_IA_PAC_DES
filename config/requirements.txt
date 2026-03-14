@@ -12,6 +12,9 @@ duckdb
 pyarrow
 matplotlib
 plotly
+prophet
+xgboost
+ruptures
 
 # --- Notebooks ---
 jupyterlab

@@ -161,8 +161,8 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 4
-        taskmanager.memory.process.size: 1536m
+        taskmanager.numberOfTaskSlots: 6
+        taskmanager.memory.process.size: 2048m
     volumes:
       - ../jobs:/opt/flink/jobs
     healthcheck:
@@ -250,7 +250,8 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=Ilerna_Programaci0n
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
       - grafana-data:/var/lib/grafana
       - ../config/grafana/provisioning:/etc/grafana/provisioning

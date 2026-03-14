@@ -44,7 +44,12 @@
     "MINIO_SECRET": "Ilerna_Programaci0n",
     "MINIO_BUCKET": "datalake",
     "FASTAPI_URL": "http://localhost:8000",
+    "FLINK_URL": "http://jobmanager:8081",
     "ALERT_THRESHOLD": "80.0"
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb"
   },
   "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh .devcontainer/init_pipeline.sh",
   "postStartCommand": "bash .devcontainer/start.sh",

@@ -99,11 +99,11 @@ def main():
         unit_original STRING,
         ts            STRING,
         _ingested_at  BIGINT,
-        year          STRING,
-        month         STRING,
-        day           STRING,
-        hour          STRING
-    ) PARTITIONED BY (year, month, day, hour)
+        `year`        STRING,
+        `month`       STRING,
+        `day`         STRING,
+        `hour`        STRING
+    ) PARTITIONED BY (`year`, `month`, `day`, `hour`)
     WITH (
         'connector'   = 'filesystem',
         'path'        = 's3a://{S3_BUCKET}/{S3_PATH}/',
@@ -126,10 +126,10 @@ def main():
         unit_original,
         ts,
         _ingested_at,
-        DATE_FORMAT(event_time, 'yyyy') AS year,
-        DATE_FORMAT(event_time, 'MM')   AS month,
-        DATE_FORMAT(event_time, 'dd')   AS day,
-        DATE_FORMAT(event_time, 'HH')   AS hour
+        DATE_FORMAT(event_time, 'yyyy') AS `year`,
+        DATE_FORMAT(event_time, 'MM')   AS `month`,
+        DATE_FORMAT(event_time, 'dd')   AS `day`,
+        DATE_FORMAT(event_time, 'HH')   AS `hour`
     FROM sensors_clean
     WHERE temperature_c IS NOT NULL
     """)
