@@ -29,7 +29,7 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 
 # ── Configuración ─────────────────────────────────────────────
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:29092")
-KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensores_raw")
+KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensors_clean")
 KAFKA_GROUP  = os.getenv("KAFKA_GROUP",  "storage-influx")
 
 INFLUX_URL    = os.getenv("INFLUX_URL",    "http://influxdb:8086")
@@ -51,15 +51,15 @@ def signal_handler(sig, frame):
 
 
 def message_to_point(data: dict) -> Point:
-    """Convierte un dict de sensor en un InfluxDB Point."""
+    """Convierte un dict de sensors_clean en un InfluxDB Point."""
     point = (
         Point("sensor_reading")
-        .tag("device_id", data["device_id"])
-        .tag("sensor",    data["sensor"])
-        .field("value",   float(data["value"]))
+        .tag("device_id",    data["device_id"])
+        .tag("unit_original", data.get("unit_original", "C"))
+        .field("temperature_c", float(data["temperature_c"]))
     )
-    if "unit" in data:
-        point = point.tag("unit", data["unit"])
+    if "_ingested_at" in data:
+        point = point.field("ingested_at", int(data["_ingested_at"]))
     return point
 
 
@@ -106,8 +106,8 @@ def run():
                     point = message_to_point(data)
                     batch.append(point)
                     print(
-                        f"[influx-writer] ← {data.get('device_id')}/{data.get('sensor')} "
-                        f"= {data.get('value')}"
+                        f"[influx-writer] ← {data.get('device_id')} "
+                        f"temp={data.get('temperature_c')}°C"
                     )
                 except (json.JSONDecodeError, KeyError, ValueError) as e:
                     _stats["errors"] += 1

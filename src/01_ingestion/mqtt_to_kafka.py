@@ -28,13 +28,13 @@ from confluent_kafka.admin import AdminClient, NewTopic
 # ── Configuración ─────────────────────────────────────────────
 MQTT_HOST   = os.getenv("MQTT_HOST",    "mosquitto")
 MQTT_PORT   = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_TOPIC  = os.getenv("MQTT_TOPIC",   "sensores/raw")
+MQTT_TOPIC  = os.getenv("MQTT_TOPIC",   "sensors/telemetry")
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:29092")
-KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensores_raw")
+KAFKA_TOPIC  = os.getenv("KAFKA_TOPIC",  "sensors_raw")
 
 # Campos obligatorios en cada mensaje
-REQUIRED_FIELDS = {"device_id", "sensor", "value", "ts"}
+REQUIRED_FIELDS = {"device_id", "temperature", "unit", "ts"}
 
 # ── Estado global ─────────────────────────────────────────────
 _producer: Producer = None
@@ -113,8 +113,8 @@ def on_message(client, userdata, msg):
     _producer.poll(0)  # disparar callbacks pendientes sin bloquear
 
     print(
-        f"[bridge] ↦ {payload['device_id']}/{payload['sensor']} "
-        f"= {payload['value']} → {KAFKA_TOPIC}"
+        f"[bridge] ↦ {payload['device_id']} "
+        f"temp={payload['temperature']}{payload['unit']} → {KAFKA_TOPIC}"
     )
 
 

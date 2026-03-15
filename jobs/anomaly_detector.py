@@ -1,13 +1,16 @@
 """
-anomaly_detector.py - Job PyFlink: detección de anomalías en sensores
+anomaly_detector.py - DEPRECATED
 
-Lee del topic Kafka 'sensores_raw', detecta valores fuera de rango
-y publica alertas al topic 'sensores_alertas'.
+Este job ha sido superado por flink_analytics_job.py, que implementa
+la misma funcionalidad con:
+  - Tumble Window de 1 minuto por device_id
+  - Detección de alertas (avg_temp_c > 80°C)
+  - Escritura directa en InfluxDB (measurement machine_stats)
+  - Schema correcto: sensors_clean → {device_id, temperature_c, unit_original, ts}
 
-Ejecutar dentro del contenedor jobmanager:
-  flink run -py /opt/flink/jobs/anomaly_detector.py
-
-Requiere PyFlink (incluido en la imagen flink:1.18.1-java11).
+Este archivo usa la API antigua (FlinkKafkaConsumer) con topics y schema
+obsoletos (sensores_raw, sensor, value) incompatibles con el pipeline actual.
+NO ejecutar.
 """
 
 import json
