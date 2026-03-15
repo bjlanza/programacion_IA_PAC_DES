@@ -1,10 +1,10 @@
 """
-flink_to_minio_job.py — Flink FileSystem Connector → MinIO Parquet (particionado)
+flink_to_minio_job.py — Flink FileSystem Connector → MinIO JSON (particionado)
 
 Escribe los mensajes de 'sensors_clean' directamente en MinIO como archivos
-Parquet particionados por año/mes/día/hora:
+JSON particionados por año/mes/día/hora:
 
-  s3a://datalake/clean/year=2026/month=03/day=11/hour=09/<part>.parquet
+  s3a://datalake/clean/year=2026/month=03/day=11/hour=09/<part>.json
 
 Ventajas sobre el writer Python (kafka_to_minio.py):
   · Flink gestiona checkpointing → escritura exactamente una vez (exactly-once).
@@ -89,11 +89,11 @@ def main():
     )
     """)
 
-    # ── Tabla destino: MinIO Parquet particionada ─────────────
+    # ── Tabla destino: MinIO JSON particionada ────────────────
     # Particionamos por año/mes/día/hora derivados del event_time.
     # DuckDB puede usar hive_partitioning=true para filtrar eficientemente.
     t_env.execute_sql(f"""
-    CREATE TABLE sensors_parquet (
+    CREATE TABLE sensors_json (
         device_id     STRING,
         temperature_c DOUBLE,
         unit_original STRING,
@@ -118,7 +118,7 @@ def main():
 
     # ── Insertar con columnas de partición calculadas ─────────
     stmt = t_env.execute_sql("""
-    INSERT INTO sensors_parquet
+    INSERT INTO sensors_json
     SELECT
         device_id,
         temperature_c,

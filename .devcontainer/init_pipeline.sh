@@ -122,12 +122,32 @@ rp()  { docker ps -qf "label=com.docker.compose.service=redpanda";   }
 
 flink-run()  { docker exec "$(jm)" flink run "$@"; }
 flink-list() { curl -s http://jobmanager:8081/jobs | python3 -m json.tool; }
+flink-restart() {
+  echo ">>> Relanzando jobs Flink..."
+  for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job flink_to_minio_job; do
+    echo "  Lanzando ${JOB}..."
+    docker exec "$(jm)" bash -c "nohup flink run -py /opt/flink/jobs/${JOB}.py > /tmp/${JOB}.log 2>&1 &"
+    sleep 4
+  done
+  echo ">>> Estado:"
+  flink-list
+}
 
 alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
 alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
 alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token="" --ServerApp.password="" --NotebookApp.token="" --NotebookApp.password=""'
+resources() {
+  echo "=== Host (Codespaces) ==="
+  echo "CPU:  $(nproc) cores  |  Load: $(cut -d' ' -f1-3 /proc/loadavg)"
+  echo "RAM:  $(free -h | awk '/^Mem/{print $3 " used / " $2 " total"}')"
+  echo "Disk: $(df -h /workspaces | awk 'NR==2{print $3 " used / " $2 " total  (" $5 ")"}')"
+  echo ""
+  echo "=== Contenedores Docker ==="
+  docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null | \
+    sed 's/programacion_ia_pac_des_devcontainer-//g' | sed 's/-1//g'
+}
 alias mqtt-install='sudo apt-get update -qq && sudo apt-get install -y mosquitto-clients'
 alias mqtt-sub='mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v'
 alias verify='bash /workspaces/programacion_IA_PAC_DES/tests/verify_pipeline.sh'
@@ -137,8 +157,10 @@ alias aliases='echo "
   api          → FastAPI en :8000
   ui           → Streamlit dashboard en :8501
   nb           → JupyterLab en :8888
-  flink-run    → flink run dentro del jobmanager
-  flink-list   → Lista jobs Flink activos
+  flink-run     → flink run dentro del jobmanager
+  flink-list    → Lista jobs Flink activos
+  flink-restart → Relanza los 4 jobs Flink
+  resources     → CPU, RAM, disco y stats de contenedores
   verify       → Verificación completa del pipeline
   mqtt-install → Instala mosquitto-clients
   mqtt-sub     → Suscribe a sensors/telemetry
@@ -168,5 +190,5 @@ echo    "║  ⚪ Streamlit         → http://localhost:18501       ║"
 echo    "║  ⚪ Jupyter           → http://localhost:18888       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
-echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list | mqtt-install | mqtt-sub"
+echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list | flink-restart | mqtt-install | mqtt-sub"
 echo ""

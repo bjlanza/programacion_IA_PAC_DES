@@ -471,8 +471,9 @@ with tab_rt:
         st.markdown("#### Mapa de calor — temperatura por máquina")
         heat_df = spark_df if not spark_df.empty else query_history(range_min)
         if not heat_df.empty and heat_df is not None:
-            pivot = heat_df.pivot_table(
-                index=heat_df["ts"].dt.floor("1min"),
+            heat_ts = heat_df["ts"].dt.tz_convert(None).dt.floor("1min")
+            pivot = heat_df.assign(ts_floor=heat_ts).pivot_table(
+                index="ts_floor",
                 columns="device_id",
                 values="avg_temp_c",
                 aggfunc="mean",
@@ -1027,7 +1028,7 @@ with tab_health:
             return ""
 
         st.dataframe(
-            jobs_df.style.applymap(_color_estado, subset=["estado"]),
+            jobs_df.style.map(_color_estado, subset=["estado"]),
             use_container_width=True,
             hide_index=True,
         )
