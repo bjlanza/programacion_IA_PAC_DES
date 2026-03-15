@@ -62,15 +62,15 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 | Servicio         | Puerto externo | Descripción                    | Credenciales                |
 |------------------|----------------|--------------------------------|-----------------------------|
 | Mosquitto        | 11883          | Broker MQTT                    | anónimo                     |
-| Redpanda         | 19092          | Kafka-compatible broker        | —                           |
+| Grafana          | 13000          | Dashboards                     | sin login (acceso anónimo)  |
+| FastAPI          | 18000          | API REST sensores + modelo IA  | —                           |
 | Redpanda Console | 18080          | UI de tópicos y mensajes       | —                           |
 | Flink JobManager | 18081          | Cluster Flink (REST + UI)      | —                           |
 | InfluxDB         | 18086          | Base de datos de series temp.  | admin / Ilerna_Programaci0n |
-| MinIO            | 19000 / 19001  | S3 API / Consola web           | admin / Ilerna_Programaci0n |
-| Grafana          | 13000          | Dashboards                     | sin login (acceso anónimo)  |
-| FastAPI          | 18000          | API REST sensores + modelo IA  | —                           |
 | Streamlit        | 18501          | Dashboard interactivo          | —                           |
 | JupyterLab       | 18888          | Notebooks de análisis          | —                           |
+| MinIO            | 19000 / 19001  | S3 API / Consola web           | admin / Ilerna_Programaci0n |
+| Redpanda         | 19092          | Kafka-compatible broker        | —                           |
 
 ## Estructura del proyecto
 

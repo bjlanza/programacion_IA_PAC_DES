@@ -58,8 +58,8 @@ if [[ -z "$RP" ]]; then
 else
     for TOPIC in sensors_raw sensors_clean sensors_invalid sensors_verified; do
         # rpk topic describe devuelve la info de cada partición
-        COUNT=$(docker exec "$RP" rpk topic describe "$TOPIC" 2>/dev/null \
-            | awk '/HIGH-WATERMARK/{sum+=$NF} END{print sum+0}')
+        COUNT=$(docker exec "$RP" rpk topic describe "$TOPIC" --print-partitions 2>/dev/null \
+            | awk 'NR>1 && /^[0-9]/{sum+=$NF} END{print sum+0}')
         if [[ "$COUNT" -gt 0 ]]; then
             ok "Topic $TOPIC" "$COUNT mensajes"
         else
