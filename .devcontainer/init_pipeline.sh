@@ -46,6 +46,15 @@ except Exception as e:
     print(f'    \033[33m⚠️  MinIO no disponible: {e}\033[0m', file=sys.stderr)
 " 2>&1 || true
 
+# Configurar mc alias para comandos desde el devcontainer
+MINIO_CTR="$(docker ps --format '{{.Names}}' 2>/dev/null | grep -i minio | head -1 || true)"
+if [[ -n "${MINIO_CTR}" ]]; then
+  docker exec "${MINIO_CTR}" mc alias set local http://localhost:9000 admin Ilerna_Programaci0n \
+    > /dev/null 2>&1 \
+    && echo -e "    ${GREEN}✅ mc alias 'local' configurado${NC}" \
+    || echo -e "    ${YELLOW}⚠️  No se pudo configurar mc alias${NC}"
+fi
+
 # ── 3. Jobs Flink ────────────────────────────────────────────
 echo ""
 echo ">>> [3/3] Lanzando jobs Flink..."
@@ -136,7 +145,7 @@ flink-restart() {
 
 alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
-alias minio-writer='python src/03_storage/kafka_to_minio.py'
+alias minio-writer='KAFKA_TOPIC=sensors_clean python src/03_storage/kafka_to_minio.py'
 alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
 alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token="" --ServerApp.password="" --NotebookApp.token="" --NotebookApp.password=""'

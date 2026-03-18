@@ -112,7 +112,7 @@ class AnomalyDetector:
         # score típico: [-0.5, 0.1] → invertimos y escalamos
         raw_prob = max(0.0, min(1.0, (-score - 0.1) / 0.4))
 
-        is_anomaly = prediction == -1
+        is_anomaly = bool(prediction == -1)
         stats      = self._feature_stats
 
         if is_anomaly:

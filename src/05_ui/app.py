@@ -729,18 +729,37 @@ with tab_lambda:
 
             # ── Gráfica unificada ─────────────────────────────
             unified["ts_dt"] = pd.to_datetime(unified["ts"], errors="coerce", utc=True)
+
+            # Colores por familia: rojos para hot, azules para cold
+            _HOT_COLORS  = ["#FF2222", "#CC0000", "#FF6600", "#990000", "#FF8C69"]
+            _COLD_COLORS = ["#636EFA", "#00B4D8", "#1F77B4", "#0077B6", "#48CAE4"]
+            _devices = sorted(unified["device_id"].dropna().unique())
+            _color_map = {}
+            for i, dev in enumerate(_devices):
+                _color_map[f"{dev} (hot)"]  = _HOT_COLORS[i % len(_HOT_COLORS)]
+                _color_map[f"{dev} (cold)"] = _COLD_COLORS[i % len(_COLD_COLORS)]
+
+            unified["trace_key"] = (
+                unified["device_id"]
+                + unified["source"].map({
+                    "InfluxDB (hot)": " (hot)",
+                    "MinIO (cold)":   " (cold)",
+                }).fillna("")
+            )
+
             fig = px.scatter(
                 unified.dropna(subset=["ts_dt"]),
                 x="ts_dt",
                 y="value",
-                color="source",
-                symbol="device_id",
+                color="trace_key",
+                symbol="source",
                 title="Vista unificada Lambda: Hot (InfluxDB) + Cold (MinIO Parquet)",
-                labels={"ts_dt": "Tiempo", "value": "Temperatura media (°C)", "source": "Fuente"},
+                labels={"ts_dt": "Tiempo", "value": "Temperatura media (°C)", "trace_key": "Fuente, device_id"},
                 template="plotly_dark",
-                color_discrete_map={
-                    "InfluxDB (hot)":  "#EF553B",
-                    "MinIO (cold)":    "#636EFA",
+                color_discrete_map=_color_map,
+                symbol_map={
+                    "InfluxDB (hot)": "circle",
+                    "MinIO (cold)":   "diamond",
                 },
                 opacity=0.7,
             )
@@ -778,8 +797,10 @@ with tab_lambda:
                     ["year", "month", "day", "hour"]
                 ).size().reset_index(name="registros")
                 part_df["particion"] = (
-                    part_df["year"] + "-" + part_df["month"] + "-"
-                    + part_df["day"] + " " + part_df["hour"] + "h"
+                    part_df["year"].astype(str) + "-"
+                    + part_df["month"].astype(str).str.zfill(2) + "-"
+                    + part_df["day"].astype(str).str.zfill(2) + " "
+                    + part_df["hour"].astype(str).str.zfill(2) + "h"
                 )
                 fig_part = px.bar(
                     part_df.sort_values(["year", "month", "day", "hour"]),
