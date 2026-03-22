@@ -49,12 +49,14 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
                        │               🗄️  Lambda Query
                        │               🤖 IA Anomalías
                        │
-                       └──▶ [flink_to_minio_job.py]        ← Cold path
-                              · JSON particionado por fecha
-                              · s3a://datalake/clean/year=.../
+                               │
+                               └──▶ [MinIO]  :19000/:19001   ← Cold path
+                                      ▲            DuckDB lee con hive_partitioning=true
                                       │
-                                      └──▶ [MinIO]  :19000/:19001
-                                             DuckDB lee con hive_partitioning=true
+                              [kafka_to_minio.py]
+                               · Consume sensors_clean
+                               · NDJSON particionado Hive
+                               · Arranca automáticamente con init_pipeline.sh
 ```
 
 ## Servicios Docker
@@ -102,7 +104,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │   ├── flink_normalization_job.py      # Hito 2: Table API + UDF to_celsius
 │   ├── flink_analytics_job.py          # Hito 3: Tumble Window + alertas InfluxDB
 │   ├── flink_hash_verifier_job.py      # Seguridad: SHA256 hash-chain por device
-│   └── flink_to_minio_job.py           # Cold path: JSON particionado en MinIO
+│   └── flink_to_minio_job.py           # ELIMINADO — sustituido por kafka_to_minio.py
 │
 ├── notebooks/
 │   └── 01_exploracion_datos.ipynb      # Exploración con Plotly + InfluxDB + DuckDB
@@ -141,7 +143,8 @@ source .devcontainer/init_pipeline.sh
 Esto:
 - Crea los **topics Kafka** (`sensors_raw`, `sensors_clean`, `sensors_verified`, `sensors_invalid`)
 - Crea el **bucket MinIO** `datalake`
-- Lanza los **4 jobs Flink**
+- Lanza los **3 jobs Flink** (normalización, analytics, hash verifier)
+- Arranca el **minio-writer** (cold path Python)
 - Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, ...)
 
 Una vez que los aliases estén cargados, instala las herramientas de cliente MQTT (necesario una vez por Codespace) y suscríbete al topic para verificar que llegan mensajes:
@@ -179,7 +182,7 @@ En ~30 segundos empezarán a llegar datos a Redpanda y desde ahí Flink los proc
 ### 4. Verificar estado del pipeline
 
 ```bash
-# Jobs Flink (deben aparecer 4 RUNNING)
+# Jobs Flink (deben aparecer 3 RUNNING)
 flink-list
 
 # Datos en InfluxDB (últimos 5 min)
@@ -231,30 +234,39 @@ El notebook cubre: hot path (InfluxDB), cold path (MinIO Parquet vía DuckDB), L
 
 ### Flink jobs caídos
 
-Si `flink-list` muestra menos de 4 jobs `RUNNING`:
+Si `flink-list` muestra menos de 3 jobs `RUNNING`:
 
 ```bash
-# Ver qué job falló y su causa
-curl -s http://jobmanager:8081/jobs | python3 -m json.tool
+# Ver qué job falló y su excepción
+flink-jobs
+JID=$(curl -s http://jobmanager:8081/jobs/overview | python3 -c "
+import sys,json; jobs=json.load(sys.stdin)['jobs']
+failed=[j for j in jobs if j['state']=='FAILED']
+print(failed[0]['jid'] if failed else '')")
+curl -s "http://jobmanager:8081/jobs/${JID}/exceptions" | python3 -c "
+import sys,json; print(json.load(sys.stdin).get('root-exception','')[:500])"
 
-# Relanzar un job específico (ejemplo: hash verifier)
-docker exec $(docker ps -qf label=com.docker.compose.service=jobmanager) \
-  flink run -py /opt/flink/jobs/flink_hash_verifier_job.py
-
-# Relanzar todos los jobs (desde init_pipeline.sh)
-source .devcontainer/init_pipeline.sh
+# Relanzar todos los jobs
+flink-restart
 ```
 
 ### Sin datos en Grafana
 
 1. Verifica que `sim` y `bridge` están corriendo: `ps aux | grep -E "simulator|bridge"`
 2. Verifica topics con mensajes en Redpanda Console (puerto 18080)
-3. Verifica que los 4 jobs Flink están `RUNNING`: `flink-list`
-4. Ajusta el rango de tiempo en Grafana (selector arriba a la derecha)
+3. Verifica que los 3 jobs Flink están `RUNNING`: `flink-jobs`
+4. Los dashboards usan rango `-3h` — espera al menos 1 minuto tras reiniciar los jobs
 
-### Sin datos en MinIO
+### Sin datos en MinIO (cold path)
 
-El bucket `datalake` se llena a través de `flink_to_minio_job`. Verifica que ese job esté `RUNNING` con `flink-list`. Los archivos Parquet aparecen en `datalake/clean/year=.../month=.../day=.../hour=.../`.
+El cold path usa `kafka_to_minio.py`. Debe arrancar automáticamente. Si no:
+
+```bash
+pgrep -f kafka_to_minio || minio-writer &
+cat /tmp/minio_writer.log
+```
+
+Los archivos JSON aparecen en `datalake/clean/year=.../month=.../day=.../hour=.../` cada 60 segundos.
 
 ## Topics Kafka
 
@@ -262,7 +274,7 @@ El bucket `datalake` se llena a través de `flink_to_minio_job`. Verifica que es
 |---------------------|---------------------------|------------------------------------------|-----------------------------------------------------|
 | `sensors/telemetry` | sensor_simulator          | mqtt_to_redpanda_bridge                  | MQTT raw (C/F/K, fallos posibles)                   |
 | `sensors_raw`       | mqtt_to_redpanda_bridge   | flink_normalization, flink_hash_verifier | `{device_id, temperature, unit, ts, hash, prev_hash}` |
-| `sensors_clean`     | flink_normalization_job   | flink_analytics_job, flink_to_minio      | `{device_id, temperature_c, unit_original, ts}`     |
+| `sensors_clean`     | flink_normalization_job   | flink_analytics_job, kafka_to_minio      | `{device_id, temperature_c, unit_original, ts}`     |
 | `sensors_verified`  | flink_hash_verifier_job   | —                                        | Mensajes con hash-chain íntegra                     |
 | `sensors_invalid`   | flink_hash_verifier_job   | —                                        | DLQ: mensajes con hash roto o JSON inválido         |
 
@@ -273,7 +285,12 @@ El bucket `datalake` se llena a través de `flink_to_minio_job`. Verifica que es
 | flink_normalization_job    | sensors_raw      | sensors_clean                    | Normaliza unidades a °C              |
 | flink_analytics_job        | sensors_clean    | InfluxDB (machine_stats)         | Ventana 1 min, alertas > 80°C        |
 | flink_hash_verifier_job    | sensors_raw      | sensors_verified / sensors_invalid | Verifica integridad SHA256         |
-| flink_to_minio_job         | sensors_clean    | MinIO datalake/clean/            | JSON particionado (cold path)     |
+
+**Cold path (proceso Python, no Flink):**
+
+| Script                  | Entrada       | Salida                      | Descripción                                 |
+|-------------------------|---------------|-----------------------------|---------------------------------------------|
+| kafka_to_minio.py       | sensors_clean | MinIO datalake/clean/       | NDJSON particionado Hive, ventana 60s       |
 
 ## Variables de entorno principales
 

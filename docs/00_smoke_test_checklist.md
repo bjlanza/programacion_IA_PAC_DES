@@ -182,7 +182,7 @@ curl -s http://jobmanager:8081/taskmanagers | python3 -m json.tool | grep -i "id
 
 - [ ] Aparece al menos 1 TaskManager con slots disponibles ✅
 
-### Verificar JARs y configuración S3
+### Verificar JARs Kafka
 ```bash
 JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
 TM=$(docker ps -qf "label=com.docker.compose.service=taskmanager")
@@ -191,16 +191,12 @@ TM=$(docker ps -qf "label=com.docker.compose.service=taskmanager")
 docker exec $JM ls /opt/flink/lib/ | grep kafka
 docker exec $TM ls /opt/flink/lib/ | grep kafka
 
-# Plugin S3
-docker exec $JM ls /opt/flink/plugins/flink-s3-fs-hadoop/
-
-# Configuración S3/MinIO
-docker exec $JM grep -i "s3\|minio" /opt/flink/conf/flink-conf.yaml
+# pyflink.zip extraído (necesario para UDFs Python)
+docker exec $JM ls /opt/flink/opt/python/pyflink_pkg/pyflink/bin/
 ```
 
 - [ ] JAR `flink-sql-connector-kafka-3.1.0-1.18.jar` en `/opt/flink/lib/` (jobmanager y taskmanager) ✅
-- [ ] Plugin S3 en `/opt/flink/plugins/flink-s3-fs-hadoop/` ✅
-- [ ] Configuración S3/MinIO en `flink-conf.yaml` ✅
+- [ ] Directorio `pyflink_pkg/pyflink/bin/` existe con `pyflink-udf-runner.sh` ✅
 
 ---
 
@@ -276,10 +272,10 @@ Arranca el pipeline en este orden:
 ```bash
 JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
 
-# 1. Simulador con hash-chaining (Terminal 1)
+# 1. Simulador con hash-chaining (Terminal 1) — alias: sim
 python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
 
-# 2. Bridge MQTT → Redpanda — Hito 1 (Terminal 2)
+# 2. Bridge MQTT → Redpanda — Hito 1 (Terminal 2) — alias: bridge
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
 # 3. Flink Hash Verifier — Aportación A1 (lanzar primero, keyed state)
@@ -291,13 +287,13 @@ docker exec $JM flink run -py /opt/flink/jobs/flink_normalization_job.py &
 # 5. Flink Analítica + Alertas — Hito 3
 docker exec $JM flink run -py /opt/flink/jobs/flink_analytics_job.py &
 
-# 6. Flink → MinIO Parquet — Aportación A2 Lambda Cold Path
-docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py &
+# (kafka_to_minio.py ya arrancó automáticamente con init_pipeline.sh)
+# Si necesitas relanzarlo: python src/03_storage/kafka_to_minio.py &  (alias: minio-writer)
 
-# 7. FastAPI — Hito 4 (Terminal 3) — alias: api
+# 6. FastAPI — Hito 4 (Terminal 3) — alias: api
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 8. Dashboard — Hito 4 (Terminal 4) — alias: ui
+# 7. Dashboard — Hito 4 (Terminal 4) — alias: ui
 streamlit run src/05_ui/app.py --server.port 8501
 ```
 
@@ -305,11 +301,11 @@ streamlit run src/05_ui/app.py --server.port 8501
 
 - [ ] El bridge muestra mensajes: `↦ machine-XXX | XX.XX C/F/K → sensors_raw`
 - [ ] El bridge descarta mensajes corruptos con `WARNING Mensaje rechazado`
-- [ ] En Flink UI (18081) → **Jobs** aparecen 4 jobs en estado RUNNING:
+- [ ] En Flink UI (18081) → **Jobs** aparecen **3 jobs** en estado RUNNING:
   - [ ] `sensor-hash-chain-verifier` (Aportación A1)
   - [ ] `sensor-normalization` (Hito 2)
   - [ ] `sensor-analytics-tumble-1min` (Hito 3)
-  - [ ] `sensor-flink-to-minio` (Aportación A2)
+- [ ] `kafka_to_minio.py` corriendo: `pgrep -f kafka_to_minio` devuelve un PID
 - [ ] En Redpanda Console (18080) → tópico `sensors_clean` recibe mensajes
 - [ ] En Redpanda Console (18080) → tópico `sensors_invalid` (DLQ) recibe mensajes corruptos
 - [ ] En Redpanda Console (18080) → tópico `sensors_verified` recibe mensajes con hash íntegro
@@ -381,22 +377,23 @@ done
 - [ ] `sensors_invalid` > 0 (fallos + hash roto) ✅
 - [ ] `sensors_verified` > 0 ✅
 
-### A2 — Lambda Architecture (Cold Path Parquet)
+### A2 — Lambda Architecture (Cold Path NDJSON)
 
 ```bash
-# Esperar ~10 min para que Flink emita el primer archivo Parquet (rolling policy)
+# Esperar ~60 s para que kafka_to_minio.py emita el primer archivo NDJSON
 # Verificar objetos en MinIO:
 python3 -c "
 from minio import Minio
 c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 objs = list(c.list_objects('datalake', prefix='clean/', recursive=True))
-print(f'Archivos Parquet en MinIO: {len(objs)}')
+print(f'Archivos NDJSON en MinIO: {len(objs)}')
 for o in objs[:5]:
-    print(' ', o.object_name)
+    print(' ', o.object_name, f'({(o.size or 0)/1024:.1f} KB)')
 "
 ```
 
 - [ ] Bucket `datalake` contiene objetos bajo `clean/year=.../month=.../day=.../hour=.../` ✅
+- [ ] Los archivos tienen extensión `.json` y contienen NDJSON válido ✅
 - [ ] En Streamlit pestaña "Lambda Query" → se puede ejecutar la consulta DuckDB ✅
 
 ### A3 — IsolationForest (Detección de Anomalías ML)
@@ -451,7 +448,8 @@ Marca solo si **todo lo anterior** está completado:
 
 **Infraestructura base:**
 - [ ] Los 8 contenedores Docker están Up/healthy
-- [ ] Los 4 jobs Flink están RUNNING
+- [ ] Los 3 jobs Flink están RUNNING (`flink-jobs`)
+- [ ] `kafka_to_minio.py` está corriendo (`pgrep -f kafka_to_minio`)
 
 **Pipeline central (Hitos 1-4):**
 - [ ] El bridge valida y descarta mensajes corruptos correctamente
@@ -462,7 +460,7 @@ Marca solo si **todo lo anterior** está completado:
 
 **Aportaciones avanzadas:**
 - [ ] A1 — Hash-Chain: `sensors_verified` recibe mensajes íntegros, `sensors_invalid` detecta cadena rota
-- [ ] A2 — Lambda Cold Path: MinIO `datalake/clean/` contiene Parquet particionado, DuckDB puede consultarlo
+- [ ] A2 — Lambda Cold Path: MinIO `datalake/clean/` contiene NDJSON particionado (Hive), DuckDB puede consultarlo con `read_json()`
 - [ ] A3 — IsolationForest: modelo entrenado, predicción devuelve `failure_prob` y `interpretation`
 
 ---
@@ -490,7 +488,7 @@ jupyter nbconvert --to notebook --execute notebooks/01_exploracion_datos.ipynb \
 ```
 
 - [ ] Sección 2 — InfluxDB: `df_hot` tiene registros, gráfica de temperatura visible ✅
-- [ ] Sección 3 — MinIO: DuckDB conecta a `minio:9000` sin error ✅
+- [ ] Sección 3 — MinIO: DuckDB conecta a `minio:9000` y lee NDJSON sin error ✅
 - [ ] Sección 4 — Lambda Query: `df_unified` contiene filas de al menos una fuente ✅
 - [ ] Sección 5 — IsolationForest: `/model/train` responde `trained: true` ✅
 - [ ] Sección 5 — Predicción 70°C: `is_anomaly: false` ✅

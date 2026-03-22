@@ -25,13 +25,14 @@ python tests/test_flow.py
 ```bash
 flink-jobs
 ```
-Debe mostrar exactamente **4 jobs RUNNING**:
+Debe mostrar exactamente **3 jobs RUNNING**:
 | Job | Descripción |
 |-----|-------------|
 | `insert-into...sensors_clean,sensors_invalid` | flink_normalization_job |
 | `sensor-analytics-tumble-1min` | flink_analytics_job |
-| `insert-into...sensors_json` | flink_to_minio_job |
 | `sensor-hash-chain-verifier` | flink_hash_verifier_job |
+
+> El cold path (MinIO) lo gestiona **`kafka_to_minio.py`** (proceso Python), no Flink.
 
 ### Ver todos los jobs (incluye FAILED/CANCELED)
 ```bash
@@ -57,7 +58,6 @@ curl -s http://jobmanager:8081/jobs/<JOB_ID>/exceptions | python3 -m json.tool
 docker exec $(jm) cat /tmp/flink_analytics_job.log
 docker exec $(jm) cat /tmp/flink_normalization_job.log
 docker exec $(jm) cat /tmp/flink_hash_verifier_job.log
-docker exec $(jm) cat /tmp/flink_to_minio_job.log
 ```
 
 ### Lanzar un job directamente (modo interactivo, muestra errores)
@@ -165,15 +165,14 @@ for o in objs[:10]:
 "
 ```
 
-### Si MinIO está vacío y el Flink job falla
+### MinIO writer (cold path)
 
-El `flink_to_minio_job` puede fallar por JARs faltantes. Alternativa directa sin Flink:
+El cold path usa `kafka_to_minio.py` — arranca automáticamente con `init_pipeline.sh`.
+Si no está corriendo:
 
 ```bash
-# Lanzar el writer Python en background
-python src/03_storage/kafka_to_minio.py &
-# o usando el alias:
-minio-writer &
+pgrep -f kafka_to_minio || minio-writer &
+cat /tmp/minio_writer.log   # ver log
 ```
 
 Escribe un archivo JSON cada 60 segundos en:
@@ -283,7 +282,7 @@ Seguir este orden cuando el pipeline no funciona:
 |---|---|
 | `flink-jobs` | Lista jobs RUNNING con nombre |
 | `flink-list` | Lista jobs (JSON raw, todos los estados) |
-| `flink-restart` | Relanza los 4 jobs Flink |
+| `flink-restart` | Relanza los 3 jobs Flink |
 | `sim` | Simulador de sensores (5 máquinas) |
 | `bridge` | Puente MQTT → Redpanda |
 | `minio-writer` | Writer Python directo sensors_clean → MinIO |

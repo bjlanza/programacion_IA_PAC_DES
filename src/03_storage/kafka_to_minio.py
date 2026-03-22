@@ -148,7 +148,7 @@ def run():
                     print(f"[minio-writer] ✗ Mensaje inválido: {e}")
 
             if time.monotonic() - window_start >= WINDOW_SECONDS:
-                if _flush(minio_client, window):
+                if window and _flush(minio_client, window):
                     consumer.commit(asynchronous=False)
                     window = []
                 window_start = time.monotonic()

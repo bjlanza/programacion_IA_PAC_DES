@@ -10,6 +10,7 @@ Pestañas:
   🏥 Pipeline Health   — Estado de servicios, jobs Flink y topics Kafka
   🔐 Hash Chain        — Integridad SHA256 por dispositivo (sensors_verified / DLQ)
   🔬 Modelos Avanzados — Prophet forecasting, RandomForest, CUSUM, K-Means
+  ❓ Ayuda            — Arquitectura, endpoints FastAPI, comandos de arranque
 
 Arquitectura Lambda:
   Hot path  → Flink → InfluxDB        (segundos de latencia, últimas horas)
@@ -136,6 +137,10 @@ def query_history(range_minutes: int) -> pd.DataFrame:
     """
     try:
         df = api.query_data_frame(query, org=INFLUX_ORG)
+        if isinstance(df, list):
+            if not df:
+                return pd.DataFrame()
+            df = pd.concat(df, ignore_index=True)
         if df.empty:
             return pd.DataFrame()
         df = df[["_time", "device_id", "avg_temp_c"]].rename(columns={"_time": "ts"})
@@ -186,48 +191,40 @@ def _init_duckdb_s3(conn: duckdb.DuckDBPyConnection):
 
 @st.cache_data(ttl=120, show_spinner="Cargando datos históricos desde MinIO...")
 def query_cold_path() -> pd.DataFrame:
-    """Lee JSON desde MinIO/cold path (flink_to_minio_job)."""
+    """Lee NDJSON desde MinIO cold path (kafka_to_minio.py).
+
+    Los ficheros están en: datalake/clean/year=YYYY/month=MM/day=DD/hour=HH/*.json
+    Escritos por kafka_to_minio.py con schema de sensors_clean:
+      device_id, temperature_c, unit_original, ts, ...
+    """
     conn = duckdb.connect()
     try:
         _init_duckdb_s3(conn)
-        # Ruta particionada de Flink (JSON con hive_partitioning)
-        try:
-            df = conn.execute(f"""
-                SELECT device_id,
-                       CAST(temperature_c AS DOUBLE) AS value,
-                       ts,
-                       year, month, day, hour
-                FROM read_json(
-                    's3://{MINIO_BUCKET}/clean/**/*.json',
-                    hive_partitioning = true,
-                    auto_detect = true
-                )
-                WHERE temperature_c IS NOT NULL
-            """).df()
-            if not df.empty:
-                df["source"] = "flink-json"
-                return df
-        except Exception:
-            pass
-        # Fallback: ruta del writer Python (kafka_to_minio.py)
-        try:
-            df = conn.execute(f"""
-                SELECT device_id,
-                       CAST(value AS DOUBLE) AS value,
-                       ts,
-                       strftime(CAST(ts AS TIMESTAMP), '%Y') AS year,
-                       strftime(CAST(ts AS TIMESTAMP), '%m') AS month,
-                       strftime(CAST(ts AS TIMESTAMP), '%d') AS day,
-                       strftime(CAST(ts AS TIMESTAMP), '%H') AS hour
-                FROM read_parquet('s3://{MINIO_BUCKET}/raw/**/*.parquet', hive_partitioning=false)
-                WHERE value IS NOT NULL
-            """).df()
-            if not df.empty:
-                df["source"] = "python-parquet"
-                return df
-        except Exception:
-            pass
-        return pd.DataFrame()
+        df = conn.execute(f"""
+            SELECT device_id,
+                   CAST(temperature_c AS DOUBLE) AS value,
+                   ts,
+                   CAST(year  AS VARCHAR) AS year,
+                   CAST(month AS VARCHAR) AS month,
+                   CAST(day   AS VARCHAR) AS day,
+                   CAST(hour  AS VARCHAR) AS hour
+            FROM read_json(
+                's3://{MINIO_BUCKET}/clean/**/*.json',
+                hive_partitioning = true,
+                columns = {{
+                    device_id:     'VARCHAR',
+                    temperature_c: 'DOUBLE',
+                    ts:            'VARCHAR'
+                }}
+            )
+            WHERE temperature_c IS NOT NULL
+              AND device_id IS NOT NULL
+            ORDER BY ts DESC
+            LIMIT 5000
+        """).df()
+        if not df.empty:
+            df["source"] = "minio-json"
+        return df
     except Exception:
         return pd.DataFrame()
     finally:
@@ -370,7 +367,7 @@ def get_verified_count() -> int:
 
 
 # ── Pestañas ──────────────────────────────────────────────────
-tab_rt, tab_hist, tab_alerts, tab_lambda, tab_ai, tab_health, tab_hash, tab_advanced = st.tabs([
+tab_rt, tab_hist, tab_alerts, tab_lambda, tab_ai, tab_health, tab_hash, tab_advanced, tab_help = st.tabs([
     "📡 Tiempo Real",
     "📈 Historial",
     "⚠️  Alertas",
@@ -379,6 +376,7 @@ tab_rt, tab_hist, tab_alerts, tab_lambda, tab_ai, tab_health, tab_hash, tab_adva
     "🏥 Pipeline Health",
     "🔐 Hash Chain",
     "🔬 Modelos Avanzados",
+    "❓ Ayuda",
 ])
 
 # ── TAB 1: Tiempo Real ────────────────────────────────────────
@@ -1691,6 +1689,169 @@ with tab_advanced:
                 ).round(2)
                 centroid_df.insert(0, "cluster", [str(i) for i in range(n_clusters)])
                 st.dataframe(centroid_df, use_container_width=True, hide_index=True)
+
+
+# ── TAB 9: Ayuda ──────────────────────────────────────────────
+with tab_help:
+    st.subheader("❓ Guía rápida del dashboard")
+
+    st.markdown("""
+    Este dashboard monitoriza el pipeline de telemetría IoT en tiempo real.
+    Usa las pestañas de arriba para navegar entre las diferentes vistas.
+    """)
+
+    st.divider()
+
+    # ── Pestañas ─────────────────────────────────────────────
+    st.markdown("### Pestañas disponibles")
+    st.markdown("""
+    | Pestaña | Descripción |
+    |---------|-------------|
+    | **📡 Tiempo Real** | Temperatura actual de cada máquina. Indicadores con alerta si supera el umbral. |
+    | **📈 Historial** | Serie temporal de temperatura normalizada. Selecciona una o varias máquinas. |
+    | **⚠️ Alertas** | Registros donde la temperatura promedio superó el umbral configurado. |
+    | **🗄️ Lambda Query** | Query federada: combina InfluxDB (hot path) y MinIO (cold path) con DuckDB. |
+    | **🤖 IA Anomalías** | IsolationForest desde FastAPI. Envía datos en batch y colorea por probabilidad de fallo. |
+    | **🏥 Pipeline Health** | Estado de servicios, jobs Flink activos y topics Kafka. |
+    | **🔐 Hash Chain** | Integridad SHA256 por dispositivo. Muestra mensajes rechazados en el DLQ. |
+    | **🔬 Modelos Avanzados** | Prophet (forecasting), RandomForest, CUSUM (cambio de régimen), K-Means (clustering). |
+    """)
+
+    st.divider()
+
+    # ── Arquitectura ──────────────────────────────────────────
+    st.markdown("### Arquitectura del pipeline")
+    st.markdown("""
+    ```
+    [sensor_simulator.py]  →  MQTT  →  [Mosquitto]
+                                              |
+                                  [mqtt_to_redpanda_bridge.py]
+                                              |  sensors_raw
+                                        [Redpanda]
+                                         |        |
+                           [flink_hash_verifier]  [flink_normalization]
+                           sensors_verified/       sensors_clean
+                           sensors_invalid (DLQ)        |
+                                              [flink_analytics]
+                                                    |
+                                ┌───────────────────┤
+                           [InfluxDB]           [kafka_to_minio.py]
+                        (hot path, <1min)       [MinIO NDJSON]
+                                |               (cold path, 60s)
+                           [FastAPI]
+                           [Streamlit ← este dashboard]
+    ```
+    """)
+
+    st.divider()
+
+    # ── Endpoints FastAPI ─────────────────────────────────────
+    st.markdown("### Endpoints FastAPI")
+    st.markdown(f"Base URL: `{FASTAPI_URL}` — Documentación interactiva: `{FASTAPI_URL}/docs`")
+
+    endpoints_data = [
+        ("GET",  "/health",          "Health check del servicio"),
+        ("GET",  "/machines/status", "Estado actual de todas las máquinas"),
+        ("GET",  "/machines/{id}",   "Detalle de una máquina específica"),
+        ("GET",  "/alerts",          "Últimas alertas activas"),
+        ("POST", "/model/train",     "Entrena el modelo IsolationForest con datos recientes"),
+        ("POST", "/model/predict",   "Predice anomalías para un batch de lecturas"),
+    ]
+    for method, path, desc in endpoints_data:
+        badge = ":blue[GET]" if method == "GET" else ":orange[POST]"
+        st.markdown(f"- {badge} `{path}` — {desc}")
+
+    col_try1, col_try2 = st.columns(2)
+    with col_try1:
+        if st.button("🔗 Abrir /docs (FastAPI)"):
+            st.markdown(f"[Abre {FASTAPI_URL}/docs]({FASTAPI_URL}/docs)")
+    with col_try2:
+        if st.button("🩺 Probar /health"):
+            try:
+                r = requests.get(f"{FASTAPI_URL}/health", timeout=3)
+                st.json(r.json())
+            except Exception as e:
+                st.error(f"No se puede conectar: {e}")
+
+    st.divider()
+
+    # ── Variables de entorno ───────────────────────────────────
+    st.markdown("### Configuración activa")
+    with st.expander("Ver variables de entorno"):
+        config_rows = [
+            ("INFLUX_URL",    INFLUX_URL),
+            ("INFLUX_ORG",    INFLUX_ORG),
+            ("INFLUX_BUCKET", INFLUX_BUCKET),
+            ("MINIO_ENDPOINT", MINIO_ENDPOINT),
+            ("MINIO_BUCKET",  MINIO_BUCKET),
+            ("FASTAPI_URL",   FASTAPI_URL),
+            ("FLINK_URL",     FLINK_URL),
+            ("KAFKA_BROKER",  KAFKA_BROKER),
+            ("ALERT_THRESHOLD", str(ALERT_THRESHOLD)),
+            ("REFRESH_SECONDS", str(REFRESH_SEC)),
+        ]
+        st.dataframe(
+            pd.DataFrame(config_rows, columns=["Variable", "Valor"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.divider()
+
+    # ── Comandos de arranque ───────────────────────────────────
+    st.markdown("### Comandos de arranque del pipeline")
+    st.code("""
+# Desde el directorio raíz del proyecto (o usar los aliases):
+
+# 1. Simulador de sensores (publica en MQTT)
+python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
+# alias: sim
+
+# 2. Bridge MQTT → Redpanda
+python src/01_ingestion/mqtt_to_redpanda_bridge.py
+# alias: bridge
+
+# 3. Jobs Flink (desde el jobmanager)
+flink-restart
+
+# 4. Cold path: Kafka → MinIO
+python src/03_storage/kafka_to_minio.py
+# alias: minio-writer
+
+# 5. FastAPI
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+# alias: api
+
+# 6. Este dashboard
+streamlit run src/05_ui/app.py --server.port 8501
+# alias: ui
+    """, language="bash")
+
+    st.divider()
+
+    # ── Servicios ────────────────────────────────────────────
+    st.markdown("### Servicios Docker")
+    services_info = [
+        ("Mosquitto",       "11883",       "Broker MQTT",                    "anónimo"),
+        ("Grafana",         "13000",       "Dashboards",                     "acceso anónimo"),
+        ("FastAPI",         "18000",       "API REST + modelo IA",           "—"),
+        ("Redpanda Console","18080",       "UI de topics y mensajes",        "—"),
+        ("Flink UI",        "18081",       "Jobs y métricas Flink",          "—"),
+        ("InfluxDB",        "18086",       "Series temporales (hot path)",   "admin / Ilerna_Programaci0n"),
+        ("Streamlit",       "18501",       "Este dashboard",                 "—"),
+        ("JupyterLab",      "18888",       "Notebooks de análisis",          "—"),
+        ("MinIO S3 API",    "19000",       "API S3 compatible",              "admin / Ilerna_Programaci0n"),
+        ("MinIO Console",   "19001",       "Consola web MinIO",              "admin / Ilerna_Programaci0n"),
+        ("Redpanda",        "19092",       "Broker Kafka-compatible",        "—"),
+    ]
+    st.dataframe(
+        pd.DataFrame(services_info, columns=["Servicio", "Puerto", "Descripción", "Credenciales"]),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    st.divider()
+    st.caption("ILERNA Smart-Industry — Programación IA PAC DES")
 
 
 # ── Auto-refresco ─────────────────────────────────────────────

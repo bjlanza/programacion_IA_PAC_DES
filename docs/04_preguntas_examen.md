@@ -147,9 +147,13 @@ DuckDB (y herramientas como Spark, Athena) pueden leer solo las particiones nece
 
 ---
 
-**¿Por qué se eligió JSON (NDJSON) en lugar de Parquet para el cold path Python?**
+**¿Por qué se eligió `kafka_to_minio.py` (Python) en lugar de un job Flink para el cold path?**
 
-El conector FileSystem de Flink requiere JARs adicionales que presentaban conflictos de dependencias en el entorno. El writer Python alternativo usa NDJSON (un JSON por línea) que DuckDB lee directamente con `read_json()` y también soporta particionado Hive. Parquet requeriría `pyarrow` y es más complejo de generar desde Python puro.
+El conector FileSystem de Flink + plugin S3/Hadoop requiere JARs de Hadoop que presentaban conflictos de classpath en el entorno (Flink 1.18 + Java 17). El proceso Python alternativo (`kafka_to_minio.py`) consume `sensors_clean` directamente con `confluent_kafka`, acumula mensajes en ventanas de 60s y los escribe en MinIO como NDJSON con particionado Hive. DuckDB los lee con `read_json()` y `hive_partitioning=true`, obteniendo exactamente el mismo resultado funcional.
+
+**¿Por qué se eligió NDJSON en lugar de Parquet para el cold path Python?**
+
+NDJSON (un JSON por línea) no requiere dependencias externas para escribir: basta con `json.dumps()` por registro y la librería `minio` para subir el archivo. Parquet requeriría `pyarrow`, que añade complejidad y peso. DuckDB lee NDJSON directamente con `read_json()` con esquema explícito y particionado Hive, con rendimiento suficiente para el volumen de este proyecto.
 
 ---
 
@@ -238,17 +242,18 @@ Cada mensaje lleva un campo `hash` calculado como `SHA256(hash_anterior + payloa
 
 **¿Qué hace `init_pipeline.sh` al ejecutarlo?**
 
-1. Crea los 4 topics Kafka en Redpanda.
+1. Crea los 4 topics Kafka en Redpanda (`sensors_raw`, `sensors_clean`, `sensors_verified`, `sensors_invalid`).
 2. Crea el bucket `datalake` en MinIO.
 3. Configura el alias `mc` para comandos MinIO.
-4. Lanza los 4 jobs Flink (si no están ya corriendo).
-5. Añade aliases de desarrollo a `~/.bashrc` (`sim`, `bridge`, `api`, `ui`, `flink-jobs`, etc.).
+4. Lanza los 3 jobs Flink (si no están ya corriendo): normalization, hash_verifier, analytics.
+5. Arranca `kafka_to_minio.py` como proceso Python en background (cold path).
+6. Añade aliases de desarrollo a `~/.bashrc` (`sim`, `bridge`, `api`, `ui`, `flink-jobs`, `minio-writer`, etc.).
 
 ---
 
 **¿Por qué el TaskManager de Flink puede caerse en Codespaces?**
 
-Codespaces de 2 cores / 8GB RAM ejecuta simultáneamente: jobmanager (560MB), taskmanager (400MB), workspace (2GB+), redpanda, influxdb, minio, grafana... Con memoria justa, el sistema puede OOM-killar el TaskManager. La solución es ejecutar `flink-restart` para relanzar los jobs tras el reinicio.
+Codespaces de 2 cores / 8GB RAM ejecuta simultáneamente: jobmanager (560MB), taskmanager (400MB), workspace (2GB+), redpanda, influxdb, minio, grafana... Con memoria justa, el sistema puede OOM-killar el TaskManager. Cada job PyFlink lanza procesos Python UDF adicionales. Con 3 jobs (en lugar de 4) la presión de memoria es menor. La solución cuando caen es ejecutar `flink-restart` para relanzar los jobs tras el reinicio automático del TaskManager.
 
 ---
 

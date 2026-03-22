@@ -57,7 +57,7 @@ fi
 
 # ── 3. Jobs Flink ────────────────────────────────────────────
 echo ""
-echo ">>> [3/3] Lanzando jobs Flink..."
+echo ">>> [3/4] Lanzando jobs Flink..."
 JM_ID="$(docker ps -qf 'label=com.docker.compose.service=jobmanager' 2>/dev/null | head -1 || true)"
 
 if [[ -n "${JM_ID}" ]]; then
@@ -73,8 +73,8 @@ if [[ -n "${JM_ID}" ]]; then
     "import sys,json; d=json.load(sys.stdin); print(' '.join(j['jid'] for j in d.get('jobs',[]) if j['status']=='FAILED'))" \
     2>/dev/null || echo "")
 
-  if [[ "${RUNNING_JOBS}" -eq 4 ]]; then
-    echo -e "    ${GREEN}✅ Los 4 jobs ya están RUNNING — nada que hacer${NC}"
+  if [[ "${RUNNING_JOBS}" -eq 3 ]]; then
+    echo -e "    ${GREEN}✅ Los 3 jobs ya están RUNNING — nada que hacer${NC}"
   else
     # Cancelar jobs fallidos
     if [[ -n "${FAILED_IDS}" ]]; then
@@ -87,8 +87,8 @@ if [[ -n "${JM_ID}" ]]; then
     fi
 
     # Si quedan jobs corriendo (parcialmente activo), cancelar todo para evitar duplicados
-    if [[ "${RUNNING_JOBS}" -gt 0 && "${RUNNING_JOBS}" -lt 4 ]]; then
-      echo -e "    ${YELLOW}⚠️  Pipeline incompleto (${RUNNING_JOBS}/4 running) — reiniciando todos${NC}"
+    if [[ "${RUNNING_JOBS}" -gt 0 && "${RUNNING_JOBS}" -lt 3 ]]; then
+      echo -e "    ${YELLOW}⚠️  Pipeline incompleto (${RUNNING_JOBS}/3 running) — reiniciando todos${NC}"
       ALL_IDS=$(echo "${JOBS_JSON}" | python3 -c \
         "import sys,json; d=json.load(sys.stdin); print(' '.join(j['jid'] for j in d.get('jobs',[]) if j['status']=='RUNNING'))" \
         2>/dev/null || echo "")
@@ -99,8 +99,8 @@ if [[ -n "${JM_ID}" ]]; then
       sleep 3
     fi
 
-    # Lanzar los 4 jobs
-    JOBS=(flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py flink_to_minio_job.py)
+    # Lanzar los 3 jobs
+    JOBS=(flink_normalization_job.py flink_hash_verifier_job.py flink_analytics_job.py)
     TOTAL=${#JOBS[@]}
     IDX=0
     for JOB in "${JOBS[@]}"; do
@@ -116,6 +116,17 @@ if [[ -n "${JM_ID}" ]]; then
   fi
 else
   echo -e "    ${YELLOW}⚠️  jobmanager no encontrado${NC}"
+fi
+
+# ── 4. MinIO writer (cold path) ──────────────────────────────
+echo ""
+echo ">>> [4/4] Arrancando minio-writer (cold path)..."
+if pgrep -f "kafka_to_minio.py" > /dev/null 2>&1; then
+  echo -e "    ${GREEN}✅ minio-writer ya está corriendo${NC}"
+else
+  nohup python /workspaces/programacion_IA_PAC_DES/src/03_storage/kafka_to_minio.py \
+    > /tmp/minio_writer.log 2>&1 &
+  echo -e "    ${GREEN}✅ minio-writer arrancado (PID $!)  — log: /tmp/minio_writer.log${NC}"
 fi
 
 # ── Aliases de desarrollo ────────────────────────────────────
@@ -134,7 +145,7 @@ flink-list() { curl -s http://jobmanager:8081/jobs | python3 -m json.tool; }
 flink-jobs() { curl -s http://jobmanager:8081/jobs/overview | python3 -c "import sys,json; [print(j['jid'][:8], j['state'], j['name'][:60]) for j in json.load(sys.stdin)['jobs'] if j['state'] not in ('CANCELED','FAILED','FINISHED')]"; }
 flink-restart() {
   echo ">>> Relanzando jobs Flink..."
-  for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job flink_to_minio_job; do
+  for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job; do
     echo "  Lanzando ${JOB}..."
     docker exec "$(jm)" bash -c "nohup flink run -py /opt/flink/jobs/${JOB}.py > /tmp/${JOB}.log 2>&1 &"
     sleep 4
@@ -172,7 +183,7 @@ alias aliases='echo "
   flink-run     → flink run dentro del jobmanager
   flink-list    → Lista jobs Flink (JSON raw)
   flink-jobs    → Lista jobs con nombre y estado (resumen)
-  flink-restart → Relanza los 4 jobs Flink
+  flink-restart → Relanza los 3 jobs Flink
   resources     → CPU, RAM, disco y stats de contenedores
   verify       → Verificación completa del pipeline
   mqtt-install → Instala mosquitto-clients

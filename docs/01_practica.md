@@ -51,22 +51,22 @@
 │  · ALERTA si avg_temp_c > 80°C (flag alert=1)                       │
 │  · Sink: InfluxDB via HTTP Line Protocol (urllib, sin deps extras)   │
 └──────────────────────────┬──────────────────────────────────────────┘
-       ┌────────────────────┴─────────────────┐
-       │ measurement: machine_stats            │ Flink Job C (cold path)
-       ▼                                      ▼
-┌──────────────────┐              ┌───────────────────────────────────┐
-│  HOT PATH        │              │  COLD PATH                         │
-│  InfluxDB :18086 │              │  flink_to_minio_job.py             │
-│  bucket: sensores│              │  FileSystem connector              │
-│  (tiempo real)   │              │  Parquet SNAPPY particionado:      │
-└──────────────────┘              │  s3a://datalake/clean/             │
-       │                          │  year=.../month=.../day=.../hour=/│
-       │                          │  MinIO :19000                      │
-       │                          └───────────────────────────────────┘
-       │                                       │
-       └─────────────────┬─────────────────────┘
-                         │ Arquitectura Lambda: Hot + Cold
-                         ▼
+       ┌────────────────────┴──────────────────────┐
+       │ measurement: machine_stats               │ Python process (cold path)
+       ▼                                         ▼
+┌──────────────────┐              ┌──────────────────────────────────────┐
+│  HOT PATH        │              │  COLD PATH                            │
+│  InfluxDB :18086 │              │  kafka_to_minio.py (proceso Python)   │
+│  bucket: sensores│              │  Consume sensors_clean vía Kafka      │
+│  (tiempo real)   │              │  Escribe NDJSON particionado Hive:    │
+└──────────────────┘              │  datalake/clean/year=.../month=.../   │
+       │                          │  day=.../hour=.../<ts>.json           │
+       │                          │  MinIO :19000  (ventana 60s)          │
+       │                          └──────────────────────────────────────┘
+       │                                          │
+       └──────────────────┬───────────────────────┘
+                          │ Arquitectura Lambda: Hot + Cold
+                          ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  SERVICIO  Hito 4                                                    │
 │  ┌───────────────────────────┐  ┌──────────────────────────────────┐│
@@ -76,10 +76,10 @@
 │  │ /machines/{id}/predict ←IA │  │ ⚠️  Alertas (scatter)           ││
 │  │ /alerts                    │  │ 🗄️  Lambda Query (DuckDB UNION) ││
 │  │ /model/train               │  │ 🤖 IA Anomalías (IsolationForest)││
-│  │ /model/status              │  └──────────────────────────────────┘│
-│  └───────────────────────────┘                                       │
+│  │ /model/status              │  │ 🏥 Pipeline Health               ││
+│  └───────────────────────────┘  │ 🔐 Hash Chain / DLQ              ││
 │  IsolationForest (scikit-learn) — entrenado con datos de InfluxDB   │
-│  Edge: Flink detecta avg>80°C | Cloud: ML detecta anomalías raras   │
+│  Edge: Flink detecta avg>80°C | Cloud: ML detecta anomalías raras  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -111,7 +111,7 @@ docker compose -f .devcontainer/docker-compose.yml up -d
 
 ### Paso 1 — Verificar Flink
 
-`Dockerfile.jobmanager` incluye el JAR Kafka, protobuf y el plugin S3. `init_pipeline.sh` lanza los jobs al arrancar. Verifica:
+`Dockerfile.jobmanager` incluye el JAR Kafka SQL Connector y extrae `pyflink.zip` para que los UDFs Python funcionen. `init_pipeline.sh` lanza los 3 jobs al arrancar. Verifica:
 
 ```bash
 # TaskManager registrado
@@ -158,12 +158,12 @@ docker exec $JM flink run -py /opt/flink/jobs/flink_hash_verifier_job.py &
 # Hito 3: Analítica + alertas → InfluxDB
 docker exec $JM flink run -py /opt/flink/jobs/flink_analytics_job.py &
 
-# Aportación A2: Cold path → MinIO Parquet
-docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py &
-
-# Verificar los 4 jobs RUNNING
+# Verificar los 3 jobs RUNNING
 flink-list
 ```
+
+> **Nota**: El cold path (MinIO) lo gestiona `kafka_to_minio.py` como proceso Python independiente,
+> no un job Flink. Se arranca automáticamente con `init_pipeline.sh` en el paso 4/4.
 
 ### Paso 5 — Arrancar el pipeline Python
 
@@ -182,6 +182,13 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 # Terminal 4 — Dashboard Streamlit — Hito 4 (alias: ui)
 streamlit run src/05_ui/app.py --server.port 8501
 ```
+
+> **Cold path (MinIO)**: `kafka_to_minio.py` lo arranca automáticamente `init_pipeline.sh`.
+> Si necesitas relanzarlo manualmente:
+> ```bash
+> python src/03_storage/kafka_to_minio.py &
+> # alias: minio-writer
+> ```
 
 ### Paso 6 — Entrenar el modelo de IA
 
@@ -238,6 +245,10 @@ Navega por las pestañas en orden:
 3. **⚠️ Alertas** → verificar que machine-004 genera alertas
 4. **🗄️ Lambda Query** → clic en "Ejecutar Query Federada" y ver unión hot+cold
 5. **🤖 IA Anomalías** → entrenar modelo y hacer predicciones
+6. **🏥 Pipeline Health** → estado de jobs Flink, topics Kafka y servicios
+7. **🔐 Hash Chain** → mensajes verificados y DLQ
+8. **🔬 Modelos Avanzados** → Prophet, RandomForest, CUSUM, K-Means
+9. **❓ Ayuda** → arquitectura, endpoints, comandos de arranque
 
 ---
 
@@ -502,7 +513,7 @@ streamlit run src/05_ui/app.py --server.port 8501
 
 Botón que lanza una **query federada con DuckDB**:
 1. Consulta InfluxDB (hot path) → `pandas.DataFrame`
-2. Lee Parquet de MinIO (cold path) → `pandas.DataFrame`
+2. Lee NDJSON de MinIO vía `read_json()` con `hive_partitioning=true` (cold path) → `pandas.DataFrame`
 3. DuckDB registra ambos DataFrames como tablas virtuales y hace `UNION ALL`
 4. Muestra gráfica unificada coloreada por fuente y estadísticas cruzadas
 
@@ -544,13 +555,14 @@ jupyter lab --ip=0.0.0.0 --port=8888 --no-browser
 - Gauges de temperatura actual por máquina
 - Tabla de estadísticas (media, máximo, alertas) por dispositivo
 
-**Sección 3 — MinIO: Cold Path Parquet**
+**Sección 3 — MinIO: Cold Path NDJSON**
 - DuckDB con extensión `httpfs` conectado a MinIO (`minio:9000`)
-- Query sobre `s3://datalake/clean/**/*.parquet` con `hive_partitioning=true`
-- Distribución de registros Parquet por dispositivo
+- Query sobre `s3://datalake/clean/**/*.json` con `read_json()` y `hive_partitioning=true`
+- Columnas explícitas para manejar esquemas mixtos de archivos históricos
+- Distribución de registros por dispositivo
 
 **Sección 4 — Lambda Query: UNION ALL Hot + Cold**
-- Query federada DuckDB que unifica InfluxDB (hot) y MinIO Parquet (cold) vía `UNION ALL`
+- Query federada DuckDB que unifica InfluxDB (hot) y MinIO NDJSON (cold) vía `UNION ALL`
 - Gráfica unificada coloreada por fuente de datos
 
 **Sección 5 — IsolationForest: Entrenamiento y Predicción**
@@ -652,9 +664,9 @@ docker exec $(docker ps -qf "label=com.docker.compose.service=redpanda") \
 
 ---
 
-### A2 — Arquitectura Lambda con Flink → MinIO Parquet
+### A2 — Arquitectura Lambda con Python → MinIO NDJSON
 
-**Archivo:** `jobs/flink_to_minio_job.py`
+**Archivo:** `src/03_storage/kafka_to_minio.py`
 
 #### Concepto
 
@@ -663,28 +675,45 @@ La Arquitectura Lambda divide el procesamiento en dos caminos paralelos:
 | Path | Latencia | Tecnología | Uso |
 |------|----------|-----------|-----|
 | **Hot** | segundos | Flink → InfluxDB | Alertas, monitorización en tiempo real |
-| **Cold** | minutos | Flink → MinIO/Parquet | Análisis histórico, ML, reportes |
+| **Cold** | ~60 s | Python → MinIO/NDJSON | Análisis histórico, ML, reportes |
 
 Ambos paths se combinan en la capa de consulta (DuckDB) para obtener una vista unificada.
 
-#### Particionado Hive
+> **Nota de implementación**: El conector FileSystem de Flink requería JARs S3/Hadoop que
+> presentaban conflictos de dependencias en el entorno. El cold path se implementa como
+> un proceso Python independiente (`kafka_to_minio.py`) que produce resultados equivalentes.
 
-Flink escribe Parquet particionado por tiempo del evento (no de procesamiento):
+#### Funcionamiento de `kafka_to_minio.py`
 
 ```
-s3a://datalake/clean/
+1. Consume sensors_clean (confluent_kafka Consumer)
+2. Acumula mensajes en una ventana de 60 segundos
+3. Cada 60s escribe un archivo NDJSON (una línea JSON por mensaje)
+4. Ruta: datalake/clean/year=YYYY/month=MM/day=DD/hour=HH/<timestamp>.json
+5. Hace commit de offsets solo cuando la escritura en MinIO fue exitosa
+```
+
+#### Particionado Hive
+
+```
+datalake/clean/
   year=2026/
     month=03/
       day=11/
         hour=09/
-          part-0001.parquet
-          part-0002.parquet
+          1741687260.json
+          1741687320.json
 ```
 
-DuckDB puede aprovechar este particionado para filtros eficientes:
+DuckDB aprovecha este particionado con filtros eficientes:
 ```sql
-SELECT * FROM read_parquet('s3://datalake/clean/**/*.parquet', hive_partitioning=true)
-WHERE year='2026' AND month='03'   -- Solo lee las particiones necesarias
+SELECT device_id, CAST(temperature_c AS DOUBLE), ts
+FROM read_json(
+    's3://datalake/clean/**/*.json',
+    hive_partitioning = true,
+    columns = {device_id: 'VARCHAR', temperature_c: 'DOUBLE', ts: 'VARCHAR'}
+)
+WHERE year = '2026' AND month = '03'   -- Solo lee las particiones necesarias
 ```
 
 #### Query federada Lambda en Streamlit
@@ -693,8 +722,8 @@ WHERE year='2026' AND month='03'   -- Solo lee las particiones necesarias
 # Hot path: últimos 60 min de InfluxDB
 hot_df  = query_influxdb(range_minutes=60)
 
-# Cold path: histórico de MinIO (puede ser semanas/meses)
-cold_df = query_minio_parquet()
+# Cold path: histórico de MinIO NDJSON (puede ser días/semanas)
+cold_df = query_cold_path()   # DuckDB read_json con hive_partitioning
 
 # DuckDB une ambas fuentes en memoria (UNION ALL)
 conn = duckdb.connect()
@@ -704,25 +733,29 @@ unified = conn.execute("""
     SELECT device_id, value, ts, 'InfluxDB (hot)' AS source FROM hot
     UNION ALL
     SELECT device_id, value, ts, 'MinIO (cold)'   AS source FROM cold
-    ORDER BY ts DESC
+    ORDER BY ts DESC LIMIT 5000
 """).df()
 ```
 
-#### Cómo ejecutar
+#### Cómo ejecutar y verificar
 
 ```bash
-JM=$(docker ps -qf "label=com.docker.compose.service=jobmanager")
-# Plugin S3 ya incluido en Dockerfile.jobmanager
-docker exec $JM flink run -py /opt/flink/jobs/flink_to_minio_job.py
+# El proceso arranca automáticamente con init_pipeline.sh
+# Para lanzarlo manualmente:
+python src/03_storage/kafka_to_minio.py &
+# alias: minio-writer
 
-# Verificar que se crean archivos en MinIO
+# Ver el log
+tail -f /tmp/minio_writer.log
+
+# Verificar archivos en MinIO (aparecen cada 60 segundos)
 python3 -c "
 from minio import Minio
 c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
 objects = list(c.list_objects('datalake', prefix='clean/', recursive=True))
-print(f'{len(objects)} archivos Parquet en MinIO')
+print(f'{len(objects)} archivos NDJSON en MinIO')
 for o in objects[:5]:
-    print(' ', o.object_name, f'({o.size/1024:.1f} KB)')
+    print(' ', o.object_name, f'({(o.size or 0)/1024:.1f} KB)')
 "
 ```
 
