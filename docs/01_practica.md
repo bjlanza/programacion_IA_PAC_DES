@@ -170,11 +170,12 @@ flink-list
 Abre terminales separadas en Codespaces (botón `+` en el panel de terminales):
 
 ```bash
-# Terminal 1 — Simulador con hash-chaining + fallos (alias: sim)
-python src/01_ingestion/sensor_simulator.py --machines 5 --interval 2 --fault-rate 0.1
-
-# Terminal 2 — Bridge MQTT → Redpanda — Hito 1 (alias: bridge)
+# Terminal 1 — Bridge MQTT → Redpanda — Hito 1 (alias: bridge)
+# ⚠️  Debe arrancar ANTES que el simulador para no perder mensajes
 python src/01_ingestion/mqtt_to_redpanda_bridge.py
+
+# Terminal 2 — Simulador con hash-chaining + fallos (alias: sim)
+python src/01_ingestion/sensor_simulator.py --machines 5 --interval 2 --fault-rate 0.1
 
 # Terminal 3 — FastAPI — Hito 4 (alias: api)
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -519,7 +520,7 @@ Botón que lanza una **query federada con DuckDB**:
 
 ```python
 conn.register("hot_data",  hot_df)   # InfluxDB → RAM
-conn.register("cold_data", cold_df)  # MinIO Parquet → RAM
+conn.register("cold_data", cold_df)  # MinIO NDJSON → RAM
 result = conn.execute("""
     SELECT device_id, value, ts, 'InfluxDB (hot)' AS source FROM hot_data
     UNION ALL
@@ -890,11 +891,11 @@ fields:  avg_temp_c=82.34, max_temp_c=87.12, count=28, alert=1
 time:    1741687260  (inicio de ventana en segundos Unix)
 ```
 
-### `datalake/clean/year=2026/month=03/day=11/hour=09/*.parquet` (MinIO)
+### `datalake/clean/year=2026/month=03/day=11/hour=09/*.json` (MinIO)
 ```
-Columnas: device_id, temperature_c, unit_original, ts, _ingested_at, year, month, day, hour
-Formato:  Parquet + SNAPPY compression
-Escrito por: flink_to_minio_job.py (particionado por event_time)
+Columnas: device_id, temperature_c, unit_original, ts, _ingested_at
+Formato:  NDJSON (una línea JSON por registro, sin dependencias extra)
+Escrito por: kafka_to_minio.py (ventana 60s, particionado Hive por event_time)
 ```
 
 ---
@@ -908,7 +909,7 @@ El hash debe generarse en el origen del dato (Edge), no en el transporte. Si el 
 Cada máquina tiene su propia cadena de hashes independiente. Si usáramos estado global, el mensaje 2 de machine-001 dependería del hash de machine-002, lo que es incorrecto. El estado keyed garantiza que cada cadena se verifica de forma aislada.
 
 **¿Por qué dos jobs para hot/cold path en lugar de uno?**
-El hot path (InfluxDB) necesita baja latencia y escribe registro por registro. El cold path (MinIO/Parquet) necesita alta eficiencia y escribe por lotes/particiones. Mezclarlos en un job crearía presión entre ambas latencias. La separación permite escalar cada path independientemente.
+El hot path (InfluxDB) necesita baja latencia y escribe registro por registro. El cold path (MinIO/NDJSON) necesita alta eficiencia y escribe por lotes/particiones. Mezclarlos en un job crearía presión entre ambas latencias. La separación permite escalar cada path independientemente.
 
 **¿Por qué IsolationForest y no un umbral fijo en la API?**
 Un umbral fijo (>80°C) no captura contexto histórico de cada máquina. machine-003 normalmente va a 55°C; si sube a 70°C, no supera el umbral pero es estadísticamente anómalo para esa máquina específica. IsolationForest aprende el "rango normal" de cada dispositivo, y el modelo entrenado sobre todos los datos lo captura globalmente.
@@ -919,7 +920,7 @@ Segunda línea: Flink normalization tiene `json.ignore-parse-errors=true` → ca
 Tercera línea: el hash verifier detecta cualquier manipulación post-ingesta.
 
 **¿Por qué DuckDB en lugar de Spark para el análisis histórico?**
-DuckDB es un motor OLAP embebido (sin servidor), perfecto para análisis interactivos desde Streamlit. Lee Parquet desde S3/MinIO directamente con `httpfs` sin descargar los ficheros completos. Para datasets > 100 GB o procesamiento distribuido se usaría Spark o Trino.
+DuckDB es un motor OLAP embebido (sin servidor), perfecto para análisis interactivos desde Streamlit. Lee NDJSON desde S3/MinIO directamente con `httpfs` y `read_json()` sin descargar los ficheros completos. Para datasets > 100 GB o procesamiento distribuido se usaría Spark o Trino.
 
 ---
 
@@ -935,7 +936,7 @@ DuckDB es un motor OLAP embebido (sin servidor), perfecto para análisis interac
 | `flink_analytics_job.py` | `apache-flink` | 1.18.0 | Tumble Window + sink InfluxDB |
 | `flink_analytics_job.py` | `urllib.request` | stdlib | HTTP Line Protocol a InfluxDB (sin deps extras) |
 | `flink_hash_verifier_job.py` | `apache-flink` | 1.18.0 | DataStream KeyedProcessFunction |
-| `flink_to_minio_job.py` | `apache-flink` | 1.18.0 | FileSystem connector → MinIO Parquet |
+| `kafka_to_minio.py` | `confluent-kafka`, `minio` | latest | Consumidor Kafka → MinIO NDJSON (cold path) |
 | `src/api/main.py` | `fastapi`, `uvicorn` | latest | API REST asíncrona |
 | `src/api/main.py` | `influxdb-client` | latest | Consultas Flux a InfluxDB |
 | `src/api/main.py` | `paho-mqtt` | ≥2.0 | Publicación manual vía MQTT |

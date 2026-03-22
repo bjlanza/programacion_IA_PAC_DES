@@ -147,11 +147,10 @@ Esto:
 - Arranca el **minio-writer** (cold path Python)
 - Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, ...)
 
-Una vez que los aliases estén cargados, instala las herramientas de cliente MQTT (necesario una vez por Codespace) y suscríbete al topic para verificar que llegan mensajes:
+Una vez que los aliases estén cargados, instala las herramientas de cliente MQTT si aún no están (necesario una vez por Codespace):
 
 ```bash
 mqtt-install   # instala mosquitto-clients (una vez)
-mqtt-sub       # suscribe a sensors/telemetry — deberías ver mensajes JSON en tiempo real
 ```
 
 ### 3. Arrancar el pipeline completo
@@ -160,11 +159,7 @@ mqtt-sub       # suscribe a sensors/telemetry — deberías ver mensajes JSON en
 > Los siguientes procesos hay que lanzarlos manualmente en terminales separadas:
 
 ```bash
-# Terminal 1 — Simulador de sensores (publica en Mosquitto)
-sim
-# equivale a: python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1
-
-# Terminal 2 — Bridge MQTT → Redpanda
+# Terminal 1 — Bridge MQTT → Redpanda (debe arrancar antes que el simulador)
 bridge
 # equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
@@ -175,25 +170,30 @@ api
 # Terminal 4 — Dashboard Streamlit
 ui
 # equivale a: streamlit run src/05_ui/app.py --server.port 8501
+
+# Terminal 5 (opcional) — Ver mensajes MQTT en tiempo real
+mqtt-sub
+# equivale a: mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v
 ```
 
 En ~30 segundos empezarán a llegar datos a Redpanda y desde ahí Flink los procesará hacia InfluxDB y MinIO.
 
 ### 4. Verificar estado del pipeline
 
+Ejecuta los scripts en este orden:
+
 ```bash
-# Jobs Flink (deben aparecer 3 RUNNING)
-flink-list
+# 1. Infraestructura: ¿responden todos los servicios? (justo tras init_pipeline.sh)
+bash tests/test_connectivity.sh
 
-# Datos en InfluxDB (últimos 5 min)
-curl -s -X POST "http://influxdb:8086/api/v2/query?org=ilerna" \
-  -H "Authorization: Token supersecrettoken" \
-  -H "Content-Type: application/vnd.flux" \
-  --data 'from(bucket:"sensores") |> range(start: -5m) |> count()'
+# 2. Conexiones E2E: ¿funciona cada servicio por separado?
+python tests/test_flow.py
 
-# API REST
-curl -s http://localhost:8000/machines/status | python3 -m json.tool
-curl -s http://localhost:8000/alerts | python3 -m json.tool
+# 3. Datos reales: ¿fluyen datos por el pipeline? (tras ~2 min con bridge + sim corriendo)
+bash tests/verify_pipeline.sh      # alias: verify
+
+# 4. Diagnóstico detallado de BBDDs y Grafana (si hay dudas)
+python tests/test_databases.py     # alias: verify-db
 ```
 
 ### 5. Entrenar el modelo de anomalías (primera vez)
@@ -219,7 +219,7 @@ Desde la pestaña **Ports** de Codespaces:
 | Redpanda Console  | 18080  | Topics Kafka y mensajes        |
 | JupyterLab        | 18888  | Notebooks de análisis          |
 | InfluxDB          | 18086  | Series temporales (hot path)   |
-| MinIO Console     | 19001  | Archivos Parquet (cold path)   |
+| MinIO Console     | 19001  | Archivos NDJSON (cold path)    |
 
 ### 7. JupyterLab (análisis ad-hoc)
 
@@ -228,7 +228,7 @@ nb
 # Abrir: notebooks/01_exploracion_datos.ipynb
 ```
 
-El notebook cubre: hot path (InfluxDB), cold path (MinIO Parquet vía DuckDB), Lambda Query (UNION ALL), entrenamiento IsolationForest y verificación de hash-chain.
+El notebook cubre: hot path (InfluxDB), cold path (MinIO NDJSON vía DuckDB), Lambda Query (UNION ALL), entrenamiento IsolationForest y verificación de hash-chain.
 
 ## Resolución de problemas
 

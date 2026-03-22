@@ -71,9 +71,13 @@ fi
 # ── 3. Hash Chain ─────────────────────────────────────────────
 section "Hash Chain (sensors_verified / sensors_invalid)"
 if [[ -n "$RP" ]]; then
-    # sensors_verified — debe tener campos hash y prev_hash
-    VERIFIED=$(timeout 5 docker exec "$RP" rpk topic consume sensors_verified -n 1 --offset oldest 2>/dev/null \
-        | python3 -c "
+    # sensors_verified — contar mensajes por watermark
+    VER_COUNT=$(docker exec "$RP" rpk topic describe sensors_verified --print-partitions 2>/dev/null \
+        | awk 'NR>1 && /^[0-9]/{sum+=$NF} END{print sum+0}')
+    if [[ "${VER_COUNT:-0}" -gt 0 ]]; then
+        # Consumir un mensaje para mostrar el hash
+        VERIFIED=$(timeout 5 docker exec "$RP" rpk topic consume sensors_verified -n 1 --offset start 2>/dev/null \
+            | python3 -c "
 import sys, json
 for line in sys.stdin:
     try:
@@ -83,19 +87,19 @@ for line in sys.stdin:
         p = msg.get('prev_hash','')
         if h:
             print(f'hash={h[:16]}... prev={p[:16]}...')
-        else:
-            print('NO_HASH')
     except: pass
 " 2>/dev/null)
-    if echo "$VERIFIED" | grep -q "hash="; then
-        ok "sensors_verified" "$(echo "$VERIFIED" | head -1)"
+        ok "sensors_verified" "$VER_COUNT mensajes — $(echo "$VERIFIED" | head -1)"
     else
-        warn "sensors_verified" "sin mensajes aún o sin campo hash"
+        warn "sensors_verified" "0 mensajes — si sim arrancó antes que el verifier, reinicia sim para resetear la cadena"
     fi
 
-    # sensors_invalid — razones de rechazo
-    INVALID=$(timeout 5 docker exec "$RP" rpk topic consume sensors_invalid -n 5 --offset oldest 2>/dev/null \
-        | python3 -c "
+    # sensors_invalid — razones de rechazo (watermark + muestra)
+    INV_COUNT=$(docker exec "$RP" rpk topic describe sensors_invalid --print-partitions 2>/dev/null \
+        | awk 'NR>1 && /^[0-9]/{sum+=$NF} END{print sum+0}')
+    if [[ "${INV_COUNT:-0}" -gt 0 ]]; then
+        INVALID=$(timeout 5 docker exec "$RP" rpk topic consume sensors_invalid -n 5 --offset start 2>/dev/null \
+            | python3 -c "
 import sys, json, collections
 reasons = []
 for line in sys.stdin:
@@ -108,11 +112,12 @@ for line in sys.stdin:
 if reasons:
     c = collections.Counter(reasons)
     print(', '.join(f'{r}:{n}' for r,n in c.most_common()))
+else:
+    print('(mensajes no parseables)')
 " 2>/dev/null)
-    if [[ -n "$INVALID" ]]; then
-        ok "sensors_invalid (DLQ)" "$INVALID"
+        ok "sensors_invalid (DLQ)" "$INV_COUNT mensajes — ${INVALID:-razones no disponibles}"
     else
-        warn "sensors_invalid" "sin mensajes (¿hash verifier corriendo?)"
+        warn "sensors_invalid" "0 mensajes (¿hash verifier corriendo? flink-jobs)"
     fi
 fi
 
@@ -168,7 +173,7 @@ if echo "$FILE_COUNT" | grep -q "ERROR"; then
 elif [[ "${FILE_COUNT:-0}" -gt 0 ]]; then
     ok "Archivos en MinIO" "$FILE_COUNT archivo(s)"
 else
-    warn "MinIO datalake" "0 archivos (flink_to_minio_job tarda ~10 min en emitir)"
+    warn "MinIO datalake" "0 archivos (kafka_to_minio.py escribe cada 60s — ¿está corriendo? pgrep -f kafka_to_minio)"
 fi
 
 # ── 6. FastAPI ────────────────────────────────────────────────
