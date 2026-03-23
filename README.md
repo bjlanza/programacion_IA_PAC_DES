@@ -257,14 +257,99 @@ flink-restart
 
 ### Sin datos en MinIO (cold path)
 
-El cold path usa `kafka_to_minio.py`. Debe arrancar automáticamente. Si no:
-
 ```bash
-pgrep -f kafka_to_minio || minio-writer &
-cat /tmp/minio_writer.log
+# Verificar si está corriendo y arrancarlo si no
+pgrep -f kafka_to_minio && echo "minio-writer OK" || { echo "Arrancando..."; minio-writer & }
+
+# Seguir el log
+tail -f /tmp/minio_writer.log
 ```
 
 Los archivos JSON aparecen en `datalake/clean/year=.../month=.../day=.../hour=.../` cada 60 segundos.
+
+**Verificar objetos en MinIO y que DuckDB los lee correctamente:**
+
+```bash
+python3 -c "
+from minio import Minio
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
+objs = list(c.list_objects('datalake', recursive=True))
+print(f'{len(objs)} objetos en datalake')
+for o in objs[-3:]:
+    print(f'  {o.object_name}  ({o.size} bytes)')
+"
+
+python3 -c "
+import duckdb
+conn = duckdb.connect()
+conn.execute('LOAD httpfs;')
+conn.execute(\"\"\"
+    SET s3_endpoint='minio:9000'; SET s3_access_key_id='admin';
+    SET s3_secret_access_key='Ilerna_Programaci0n'; SET s3_use_ssl=false; SET s3_url_style='path';
+\"\"\")
+df = conn.execute(\"SELECT * FROM read_json('s3://datalake/clean/**/*.json', auto_detect=true) LIMIT 2\").df()
+print('Campos:', df.columns.tolist())
+print(df[['device_id','temperature_c','ts']])
+"
+```
+
+El schema correcto de `sensors_clean` tiene `temperature_c`. Si los archivos existentes muestran `temperature` (schema antiguo), borrarlos y dejar que `kafka_to_minio` regenere:
+
+```bash
+python3 -c "
+from minio import Minio
+c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
+objs = list(c.list_objects('datalake', recursive=True))
+for o in objs:
+    c.remove_object('datalake', o.object_name)
+print(f'{len(objs)} archivos eliminados — espera 60s para los nuevos')
+"
+```
+
+**Verificar que no hay dos instancias compitiendo:**
+
+```bash
+pgrep -fa kafka_to_minio
+# Si hay dos PIDs, matar el duplicado: kill <PID_duplicado>
+```
+
+### `sensors_verified` tiene 0 mensajes (todo va al DLQ)
+
+El job `flink_hash_verifier_job` recomputa el hash. Si el hash no coincide, todo va a `sensors_invalid`.
+
+Causa más frecuente: el `compute_hash` en el job usa campos distintos a los que usó el simulador al firmar.
+
+```bash
+# Comprobar cuántos mensajes hay en cada topic
+python3 -c "
+from confluent_kafka.admin import AdminClient
+from confluent_kafka import Consumer, TopicPartition
+a = AdminClient({'bootstrap.servers': 'redpanda:29092'})
+c = Consumer({'bootstrap.servers': 'redpanda:29092', 'group.id': 'debug'})
+for topic in ['sensors_raw','sensors_clean','sensors_verified','sensors_invalid']:
+    meta = a.list_topics(topic).topics[topic]
+    parts = [TopicPartition(topic, p) for p in meta.partitions]
+    lo_hi = c.get_watermark_offsets(parts[0], timeout=3)
+    print(f'  {topic:<25}: {lo_hi[1] - lo_hi[0]:>6} mensajes')
+c.close()
+"
+```
+
+```bash
+# Ver schema real de un mensaje de sensors_clean (debe tener temperature_c)
+python3 -c "
+from confluent_kafka import Consumer, TopicPartition
+import json
+c = Consumer({'bootstrap.servers':'redpanda:29092','group.id':'debug-schema','auto.offset.reset':'latest','enable.auto.commit':False})
+c.assign([TopicPartition('sensors_clean', 0)])
+for _ in range(5):
+    msg = c.poll(2.0)
+    if msg and not msg.error():
+        print('sensors_clean campos:', list(json.loads(msg.value()).keys()))
+        break
+c.close()
+"
+```
 
 ## Topics Kafka
 

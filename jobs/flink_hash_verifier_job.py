@@ -59,10 +59,13 @@ KAFKA_DLQ      = os.getenv("KAFKA_DLQ",      "sensors_invalid")
 
 GENESIS_HASH = "0" * 64
 
+# Debe coincidir exactamente con hash_chain.py y sensor_simulator.py
+HASH_FIELDS = {"device_id", "temperature", "unit", "ts", "_ingested_at"}
+
 
 def compute_hash(payload: dict, prev_hash: str) -> str:
-    """Replica el cálculo del simulador: SHA256(payload_sin_hash + prev_hash)."""
-    content = {k: v for k, v in payload.items() if k not in ("hash", "prev_hash")}
+    """Replica el cálculo del simulador: SHA256(campos_fijos + prev_hash)."""
+    content = {k: payload[k] for k in HASH_FIELDS if k in payload}
     raw = json.dumps(content, sort_keys=True) + prev_hash
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 

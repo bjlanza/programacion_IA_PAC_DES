@@ -278,27 +278,26 @@ Codespaces de 2 cores / 8GB RAM ejecuta simultáneamente: jobmanager (560MB), ta
 ## 11. Preguntas de concepto rápido
 
 **¿Qué es un Consumer Group en Kafka?**
-Un conjunto de consumidores que comparten la carga de un topic. Cada partición es asignada a un único consumidor del grupo. Permite escalar el consumo horizontalmente y mantiene el offset por grupo independientemente.
+
 
 **¿Qué es el offset en Kafka?**
-Un número entero que identifica la posición de un mensaje dentro de una partición. Los consumidores guardan (`commit`) su offset para saber desde dónde continuar en caso de reinicio.
+
 
 **¿Qué diferencia hay entre `earliest` y `latest` offset?**
 - `earliest`: el consumidor empieza desde el primer mensaje disponible (procesa histórico).
 - `latest`: solo procesa mensajes nuevos a partir del momento de suscripción.
 
 **¿Qué es un DLQ (Dead Letter Queue)?**
-Topic o cola donde se envían mensajes que no pudieron procesarse correctamente. Permite auditoría, reprocesamiento manual y evita que mensajes corruptos bloqueen el pipeline principal.
+
 
 **¿Qué es el watermark en streaming y por qué importa en ventanas?**
-Una estimación del "tiempo de evento actual" que avanza a medida que llegan datos. Sin watermark Flink no sabría cuándo cerrar una ventana temporal porque los eventos pueden llegar desordenados. El watermark define cuánto retraso se tolera antes de emitir el resultado de una ventana.
+
 
 **¿Qué ventaja tiene el formato NDJSON frente a JSON array?**
-NDJSON (una línea = un JSON) permite leer el fichero en streaming sin cargar todo en memoria. También facilita la lectura parcial y el append atómico. DuckDB lo lee directamente con `read_json()`.
 
 ---
 
-## 12. Preguntas adicionales — sin respuesta
+
 
 **¿Por qué se usa `sort_keys=True` en `json.dumps()` al calcular el hash SHA256 en el simulador? ¿Qué ocurriría si se omite?**
 
@@ -360,7 +359,6 @@ NDJSON (una línea = un JSON) permite leer el fichero en streaming sin cargar to
 
 ---
 
-## 13. Preguntas adicionales II — sin respuesta
 
 **¿Qué hace exactamente `source .devcontainer/init_pipeline.sh` que no haría `bash .devcontainer/init_pipeline.sh`? ¿Por qué los aliases no quedarían disponibles en el shell actual si se usa `bash`?**
 
@@ -419,3 +417,287 @@ NDJSON (una línea = un JSON) permite leer el fichero en streaming sin cargar to
 ---
 
 **Si añadiéramos una sexta máquina al simulador (`--machines 6`), ¿qué cambios habría que hacer en el pipeline? ¿Qué componentes se adaptan automáticamente y cuáles requieren configuración manual?**
+
+---
+
+**¿Qué diferencia hay entre `KafkaSource` (Flink DataStream API) y `KafkaConsumer` (confluent_kafka)? ¿Cuándo se usa cada uno en este proyecto?**
+
+---
+
+**¿Por qué Redpanda expone el puerto 9644 solo dentro de la red Docker y no al exterior? ¿Qué riesgo habría si se expusiera?**
+
+---
+
+**En InfluxDB, ¿qué diferencia hay entre un `tag` y un `field`? ¿Por qué `device_id` es un tag y `avg_temp_c` es un field?**
+
+---
+
+**¿Qué es `hive_partitioning=true` en DuckDB? ¿Qué ocurre si se omite cuando los archivos están en carpetas `year=2026/month=03/...`?**
+
+---
+
+**¿Qué garantiza `DeliveryGuarantee.AT_LEAST_ONCE` en el `KafkaSink` de Flink? ¿Qué se necesitaría para tener `EXACTLY_ONCE`?**
+
+---
+
+**¿Qué es un `ValueState` en Flink y por qué es necesario para el hash verifier? ¿Qué pasaría si se usara una variable de instancia Python normal en su lugar?**
+
+---
+
+**¿Qué significa que Redpanda sea "Kafka-compatible"? ¿Puede usarse `confluent_kafka` sin modificaciones contra Redpanda?**
+
+---
+
+**¿Qué es `scan.startup.mode = 'earliest-offset'` en el conector Kafka de Flink Table API? ¿Qué implicación tiene si el job se reinicia?**
+
+---
+
+**¿Qué hace `json.ignore-parse-errors = 'true'` en el conector Kafka de Flink? ¿Qué alternativa habría si se necesita auditar esos mensajes?**
+
+---
+
+**¿Por qué `minio:9000` funciona como endpoint desde el devcontainer pero `localhost:19000` no? ¿Qué determina qué hostname usar en cada contexto?**
+
+---
+
+**¿Qué es el `group_id` en un consumidor Kafka y qué ocurre si dos procesos arrancan con el mismo `group_id` sobre el mismo topic?**
+
+---
+
+**En el Line Protocol de InfluxDB, ¿qué diferencia hay entre escribir `count=5i` y `count=5.0`? ¿Qué tipo de dato representa cada uno?**
+
+---
+
+**¿Qué es `auto.offset.reset: earliest` en `kafka_to_minio.py`? ¿Qué ocurre la primera vez que arranca con ese grupo y qué ocurre si el proceso se reinicia con el mismo grupo?**
+
+---
+
+**¿Qué es `proc_time AS PROCTIME()` en Flink Table API y en qué se diferencia del `event_time` usado en el analytics job? ¿Para qué sirve el processing time?**
+
+---
+
+**¿Por qué el hash verifier usa `key_by(device_id)` antes de `process(HashChainVerifier())`? ¿Qué ocurriría si se procesaran todos los mensajes sin keyear?**
+
+---
+
+**¿Qué es `enable.auto.commit: False` en `kafka_to_minio.py` y por qué es importante para la consistencia entre Kafka y MinIO?**
+
+---
+
+**¿Qué ventaja tiene NDJSON (una línea = un registro) frente a un JSON array para el cold path? ¿Qué otras herramientas además de DuckDB lo leen nativamente?**
+
+---
+
+**¿Qué ocurre con los mensajes de `sensors_invalid` una vez escritos? ¿Hay algún consumidor activo en este pipeline que los procese?**
+
+---
+
+**¿Qué es el `schemaVersion` en un JSON de dashboard de Grafana y por qué no se debe bajar su valor al editar manualmente el archivo?**
+
+---
+
+**El endpoint `/v1/cluster` de Redpanda devuelve 404 en v25. ¿Cuál es el endpoint correcto para obtener el estado de salud del cluster y qué campos devuelve?**
+
+---
+
+## Hot path vs Cold path — conceptos generales
+
+**¿Cuál es la diferencia fundamental entre hot path y cold path en una arquitectura Lambda?**
+
+---
+
+**¿Por qué el hot path usa InfluxDB y no MinIO? ¿Qué características de InfluxDB lo hacen adecuado para datos en tiempo real?**
+
+---
+
+**¿Por qué el cold path no puede usarse para alertas en tiempo real aunque tenga más datos históricos?**
+
+---
+
+**¿Qué es la "serving layer" en la arquitectura Lambda y qué tecnología la implementa en este proyecto?**
+
+---
+
+**¿Qué ocurre con los datos del hot path pasadas 3 horas según la configuración de este proyecto? ¿Dónde quedarían esos datos si no se ha escrito el cold path?**
+
+---
+
+**¿Por qué en el cold path se usan ventanas de 60 segundos para escribir en MinIO en lugar de escribir registro a registro?**
+
+---
+
+**¿Qué es la latencia de procesamiento del cold path en este proyecto? ¿Qué factores la determinan?**
+
+---
+
+**Si el `kafka_to_minio.py` lleva parado 2 horas y se reinicia con `auto.offset.reset: earliest`, ¿qué datos recuperará? ¿Hay algún riesgo de pérdida?**
+
+---
+
+**¿Qué ventaja tiene consultar hot + cold con `UNION ALL` en DuckDB frente a replicar todos los datos a una única base de datos?**
+
+---
+
+## 16. Conceptos generales de streaming y mensajería
+
+**¿Qué diferencia hay entre un sistema de mensajería (RabbitMQ) y un log distribuido (Kafka/Redpanda)? ¿Por qué importa la diferencia para el cold path?**
+
+---
+
+**¿Qué es la retención de mensajes en Kafka? Si `sensors_raw` tuviera retención de 1 hora y el hash verifier llevara 2 horas parado, ¿qué mensajes perdería al arrancar con `earliest`?**
+
+---
+
+**¿Qué es el `high watermark` de una partición Kafka y cómo se relaciona con el número de mensajes visibles para un consumidor?**
+
+---
+
+**¿Qué es el backpressure en Flink y cómo se detecta en la Flink UI?**
+
+---
+
+**¿Qué es event time vs processing time en streaming? ¿En qué situación pueden divergir significativamente en este pipeline?**
+
+---
+
+**¿Qué es exactamente un `topic` en Kafka y en qué se diferencia de una cola tradicional?**
+
+---
+
+**¿Qué es `parallelism=1` en Flink y qué implicación tiene sobre el rendimiento y la capacidad de escalar el job?**
+
+---
+
+## Conceptos generales de almacenamiento y consulta
+
+**¿Qué es un object store (MinIO/S3) y en qué se diferencia de un sistema de ficheros tradicional?**
+
+---
+
+**¿Qué es una base de datos de series temporales (TSDB) y en qué se diferencia de una base de datos relacional para datos de sensores?**
+
+---
+
+**¿Qué es el `bucket` en InfluxDB y en MinIO? ¿Son el mismo concepto?**
+
+---
+
+**¿Qué es Flux y en qué se diferencia de SQL para consultar series temporales? ¿Por qué InfluxDB v2 abandonó InfluxQL?**
+
+---
+
+**¿Qué es un índice columnar y por qué formatos como Parquet son más eficientes que JSON para consultas analíticas sobre millones de filas?**
+
+---
+
+**¿Qué es `partition pruning` y por qué el particionado Hive por `year/month/day/hour` mejora el rendimiento de DuckDB al consultar un rango de fechas?**
+
+---
+
+**¿Qué diferencia hay entre `read_json` y `read_parquet` en DuckDB? ¿Qué ventajas e inconvenientes tiene cada uno para el cold path?**
+
+---
+
+## Conceptos generales de contenedores y DevOps
+
+**¿Qué es un `healthcheck` en Docker Compose y por qué es importante para servicios como Redpanda o InfluxDB que tardan en estar listos?**
+
+---
+
+**¿Qué diferencia hay entre `depends_on: service_healthy` y `depends_on: service_started` en Docker Compose?**
+
+---
+
+**¿Qué es un volumen Docker y por qué los datos de InfluxDB y MinIO se guardan en volúmenes en lugar de en el sistema de ficheros del contenedor?**
+
+---
+
+**¿Qué es una red Docker bridge y por qué todos los servicios de este proyecto comparten la misma red `ilerna_ia_big_data`?**
+
+---
+
+**¿Qué es un devcontainer y qué ventaja tiene frente a instalar las dependencias directamente en la máquina local?**
+
+---
+
+**¿Qué es `restart: unless-stopped` en Docker Compose? ¿Qué diferencia hay con `always` y con `on-failure`?**
+
+---
+
+## Preguntas sobre los notebooks Jupyter
+
+### Notebook 01 — Exploración de datos
+
+**El notebook lee datos de InfluxDB con un query Flux `range(start: -3h)`. ¿Qué ocurre si se ejecuta el notebook justo después de arrancar el pipeline por primera vez? ¿Qué datos devuelve?**
+
+---
+
+**La sección 3 del notebook 01 usa DuckDB con `read_json('s3://datalake/clean/**/*.json', hive_partitioning=true)`. ¿Qué hace el patrón `**/*.json`? ¿Qué archivos excluiría si se pusiera `clean/year=2026/*.json` en su lugar?**
+
+---
+
+**El notebook distingue entre "Edge intelligence" (Flink, alerta `avg > 80°C`) y "Cloud intelligence" (IsolationForest, `failure_prob`). ¿En qué situación detectaría anomalías el modelo ML que la regla de Flink no detectaría?**
+
+---
+
+**La sección 5 del notebook 01 hace `UNION ALL` entre hot_df (InfluxDB) y cold_df (MinIO) con DuckDB. ¿Qué ocurre con los registros que están en ambas fuentes a la vez (solapamiento temporal)? ¿Se duplican?**
+
+---
+
+**El notebook entrena el IsolationForest con `POST /model/train?range_minutes=60&contamination=0.1`. ¿Qué pasa si se entrena con solo 5 minutos de datos? ¿Qué efecto tiene `contamination=0.1` sobre los resultados de predicción?**
+
+---
+
+**La sección 6 del notebook 01 verifica la hash-chain leyendo mensajes de `sensors_raw` con `confluent_kafka`. ¿Por qué se agrupa por `device_id` antes de verificar? ¿Qué ocurriría si se verificaran todos los mensajes juntos sin agrupar?**
+
+---
+
+### Notebook 02 — Análisis de calidad
+
+**El notebook 02 calcula el ratio de rechazo del DLQ: `total_dlq / total_raw * 100`. En una ejecución normal sin fallos simulados, ¿debería ser 0%? ¿Qué causa que siempre haya algún mensaje en `sensors_invalid`?**
+
+---
+
+**La sección 2 del notebook 02 verifica la hash-chain de forma independiente al job Flink. ¿Cuál es el valor de hacer esta verificación en el notebook si Flink ya la hace en tiempo real?**
+
+---
+
+**La sección 4 del notebook 02 analiza la distribución de unidades (`C`, `F`, `K`) en `sensors_raw`. Si el simulador genera 5 máquinas con configuración por defecto, ¿qué distribución aproximada de unidades cabría esperar?**
+
+---
+
+**El resumen ejecutivo (sección 6 del notebook 02) muestra tres gauges: Hash Integrity, Cold Completitud y Aceptación DLQ. ¿Qué valor de "Aceptación DLQ" indicaría que el pipeline está sano? ¿Qué significaría un valor de 50%?**
+
+---
+
+### Notebook 03 — Bases de datos y cálculos
+
+**La sección 2 del notebook 03 obtiene los `high watermark` de cada topic con `get_watermark_offsets()`. ¿Qué diferencia hay entre `low watermark` y `high watermark`? ¿Cuándo el `low watermark` sería mayor que 0?**
+
+---
+
+**La sección 2 del notebook 03 calcula el ratio `sensors_clean / sensors_raw`. En condiciones normales, ¿debería ser cercano a 1.0 o significativamente menor? ¿Qué lo haría bajar mucho?**
+
+---
+
+**La sección 3 del notebook 03 inventaría los archivos NDJSON en MinIO con DuckDB. Si hay 10 archivos de 60 segundos cada uno, ¿cuántos minutos de datos históricos cubre el cold path aproximadamente?**
+
+---
+
+**La sección 5 del notebook 03 analiza el solapamiento temporal entre hot path y cold path. ¿Por qué puede haber registros en el hot path que no están en el cold path y viceversa?**
+
+---
+
+**La sección 6 del notebook 03 calcula el Z-score por máquina: `(x - mean) / std`. ¿Qué valor de Z-score se considera anómalo convencionalmente? ¿En qué se diferencia este enfoque del IsolationForest del notebook 01?**
+
+---
+
+**El heatmap de correlación del notebook 03 muestra la correlación entre `avg_temp_c` de distintas máquinas. ¿Qué significaría una correlación alta (>0.9) entre dos máquinas? ¿Y una correlación negativa?**
+
+---
+
+**El notebook 03 calcula la tendencia de temperatura con una regresión lineal sobre el tiempo. ¿Qué indica una pendiente positiva sostenida en una máquina industrial? ¿Cómo se relaciona con el umbral de alerta de 80°C?**
+
+---
+
+**La sección 4 del notebook 03 consulta `GET /machines/status` de FastAPI. ¿Qué ocurre si FastAPI no está corriendo cuando se ejecuta esa celda? ¿Cómo debería gestionarlo el notebook para no interrumpir las secciones siguientes?**

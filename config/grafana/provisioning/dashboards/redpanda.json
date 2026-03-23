@@ -172,20 +172,15 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://redpanda:9644/v1/cluster",
+          "url": "http://redpanda:9644/v1/cluster/health_overview",
           "url_options": {
             "method": "GET"
           },
           "root_selector": "",
           "columns": [
             {
-              "selector": "raft_group_id",
-              "text": "Raft Group",
-              "type": "number"
-            },
-            {
-              "selector": "ntp.topic",
-              "text": "Topic",
+              "selector": "is_healthy",
+              "text": "Estado",
               "type": "string"
             }
           ],

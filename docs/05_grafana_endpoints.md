@@ -24,10 +24,12 @@ Todos los hostnames son internos a la red Docker (`ilerna_ia_big_data`). Grafana
 | Endpoint | Descripción | Formato respuesta |
 |---|---|---|
 | `http://redpanda:9644/v1/brokers` | Lista de brokers del cluster | Array de objetos |
-| `http://redpanda:9644/v1/cluster` | Info general del cluster | Objeto |
+| `http://redpanda:9644/v1/cluster/health_overview` | Estado de salud del cluster (`is_healthy`, nodos caídos, particiones sin líder) | Objeto |
 | `http://redpanda:9644/v1/topics/{topic}/partitions/0/replicas` | High watermark de una partición | Array con campo `high_watermark` |
 
-> **Nota:** `GET /v1/topics` (listado de todos los topics) devuelve **404 en Redpanda v25**. Los paneles de topics usan datos inline estáticos.
+> **Notas:**
+> - `GET /v1/cluster` devuelve **404 en Redpanda v25** — usar `/v1/cluster/health_overview`.
+> - `GET /v1/topics` (listado de todos los topics) también devuelve 404. Los paneles de topics usan datos inline estáticos.
 
 ### Redpanda — Pandaproxy HTTP (puerto 8082)
 
@@ -72,14 +74,15 @@ Los dashboards están definidos en `config/grafana/provisioning/dashboards/` y G
 
 | Archivo | UID | Título |
 |---|---|---|
-| `pipeline.json` | `ilerna-pipeline` | ILERNA Smart-Industry — Telemetría IoT |
+| `pipeline.json` | `ilerna-smartindustry` | ILERNA Smart-Industry — Telemetría IoT |
 | `redpanda.json` | `ilerna-redpanda` | ILERNA Smart-Industry — Redpanda / Kafka |
+| `fastapi.json` | *(ver archivo)* | ILERNA Smart-Industry — FastAPI |
 
 Para ver el JSON actual de un dashboard desde la API de Grafana:
 
 ```
 http://localhost:13000/api/dashboards/uid/ilerna-redpanda
-http://localhost:13000/api/dashboards/uid/ilerna-pipeline
+http://localhost:13000/api/dashboards/uid/ilerna-smartindustry
 ```
 
 ### Otros endpoints de la API de Grafana
