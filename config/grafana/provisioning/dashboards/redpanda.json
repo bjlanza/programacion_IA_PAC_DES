@@ -119,13 +119,9 @@
         {
           "refId": "A",
           "type": "json",
-          "source": "url",
+          "source": "inline",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics",
-          "url_options": {
-            "method": "GET"
-          },
-          "root_selector": "",
+          "data": "[{\"topic\":\"sensors_raw\"},{\"topic\":\"sensors_clean\"},{\"topic\":\"sensors_verified\"},{\"topic\":\"sensors_invalid\"}]",
           "columns": [
             {
               "selector": "topic",
@@ -327,13 +323,9 @@
         {
           "refId": "A",
           "type": "json",
-          "source": "url",
+          "source": "inline",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics",
-          "url_options": {
-            "method": "GET"
-          },
-          "root_selector": "",
+          "data": "[{\"topic\":\"sensors_raw\",\"partition_count\":1,\"replication_factor\":1,\"is_internal\":false,\"compression\":\"none\"},{\"topic\":\"sensors_clean\",\"partition_count\":1,\"replication_factor\":1,\"is_internal\":false,\"compression\":\"none\"},{\"topic\":\"sensors_verified\",\"partition_count\":1,\"replication_factor\":1,\"is_internal\":false,\"compression\":\"none\"},{\"topic\":\"sensors_invalid\",\"partition_count\":1,\"replication_factor\":1,\"is_internal\":false,\"compression\":\"none\"}]",
           "columns": [
             {
               "selector": "topic",
@@ -420,6 +412,10 @@
       "targets": [
         {
           "refId": "sensors_raw",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "infinity"
+          },
           "type": "json",
           "source": "url",
           "format": "table",
@@ -431,7 +427,76 @@
           "columns": [
             {
               "selector": "high_watermark",
-              "text": "Mensajes",
+              "text": "sensors_raw",
+              "type": "number"
+            }
+          ],
+          "parser": "backend"
+        },
+        {
+          "refId": "sensors_clean",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "infinity"
+          },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics/sensors_clean/partitions/0/replicas",
+          "url_options": {
+            "method": "GET"
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "high_watermark",
+              "text": "sensors_clean",
+              "type": "number"
+            }
+          ],
+          "parser": "backend"
+        },
+        {
+          "refId": "sensors_verified",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "infinity"
+          },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics/sensors_verified/partitions/0/replicas",
+          "url_options": {
+            "method": "GET"
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "high_watermark",
+              "text": "sensors_verified",
+              "type": "number"
+            }
+          ],
+          "parser": "backend"
+        },
+        {
+          "refId": "sensors_invalid",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "infinity"
+          },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://redpanda:9644/v1/topics/sensors_invalid/partitions/0/replicas",
+          "url_options": {
+            "method": "GET"
+          },
+          "root_selector": "",
+          "columns": [
+            {
+              "selector": "high_watermark",
+              "text": "sensors_invalid",
               "type": "number"
             }
           ],

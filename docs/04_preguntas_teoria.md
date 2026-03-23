@@ -1,4 +1,4 @@
-# Preguntas de Examen — ILERNA Smart-Industry PAC DES
+# Preguntas de Teoría — ILERNA Smart-Industry PAC DES
 
 Preguntas y respuestas organizadas por bloque temático, cubriendo los conceptos clave del pipeline.
 
@@ -295,3 +295,127 @@ Una estimación del "tiempo de evento actual" que avanza a medida que llegan dat
 
 **¿Qué ventaja tiene el formato NDJSON frente a JSON array?**
 NDJSON (una línea = un JSON) permite leer el fichero en streaming sin cargar todo en memoria. También facilita la lectura parcial y el append atómico. DuckDB lo lee directamente con `read_json()`.
+
+---
+
+## 12. Preguntas adicionales — sin respuesta
+
+**¿Por qué se usa `sort_keys=True` en `json.dumps()` al calcular el hash SHA256 en el simulador? ¿Qué ocurriría si se omite?**
+
+---
+
+**¿Qué ocurre si el simulador arranca antes que el hash verifier de Flink? ¿Por qué los mensajes van todos al DLQ y cómo se soluciona?**
+
+---
+
+**¿Cuál es la diferencia entre semántica `at-least-once` y `exactly-once` en este pipeline? ¿Qué componente aporta cada garantía?**
+
+---
+
+**¿Por qué `device_id` se usa como clave de partición en el productor Kafka del bridge? ¿Qué propiedad garantiza esto sobre el orden de mensajes?**
+
+---
+
+**¿Qué es un `KeyedProcessFunction` en la DataStream API de Flink y por qué es la abstracción correcta para el hash verifier en lugar de una función `map` simple?**
+
+---
+
+**¿Qué son los checkpoints de Flink y cómo permiten recuperar el estado del hash verifier si el TaskManager cae?**
+
+---
+
+**¿Por qué el job de analytics usa `urllib.request` (stdlib) para escribir en InfluxDB en lugar del SDK `influxdb-client`?**
+
+---
+
+**¿Qué diferencia hay entre `|> last()` y `|> mean()` en Flux? ¿Cuándo es apropiado cada uno para consultar `machine_stats`?**
+
+---
+
+**¿Qué impacto tiene `replication_factor=1` en Redpanda sobre la durabilidad de los datos? ¿Qué cambiaría en producción?**
+
+---
+
+**¿Por qué `queryType: "flux"` es necesario en cada target de los paneles de Grafana 12 aunque el datasource ya esté configurado con `version: Flux`?**
+
+---
+
+**¿Qué es `partition pruning` en DuckDB y cómo lo habilita el particionado Hive de MinIO? ¿Qué columnas de la query deben coincidir para aprovecharlo?**
+
+---
+
+**¿Qué significa `contamination=0.1` en IsolationForest? ¿Qué efecto tiene subir ese valor a `0.5` sobre los falsos positivos y falsos negativos?**
+
+---
+
+**¿Cuál es la diferencia entre el módulo `src/processing/validators.py` y las validaciones dentro de `flink_normalization_job.py`? ¿En qué contextos se usa cada uno?**
+
+---
+
+**¿Por qué `kafka_to_minio.py` hace commit de offsets solo tras una escritura exitosa en MinIO y no automáticamente? ¿Qué problema evita?**
+
+---
+
+**Si una máquina envía un mensaje con temperatura en Kelvin absoluto cero (0K), ¿en qué punto del pipeline se rechaza y por qué? Nombra el componente y la razón exacta.**
+
+---
+
+## 13. Preguntas adicionales II — sin respuesta
+
+**¿Qué hace exactamente `source .devcontainer/init_pipeline.sh` que no haría `bash .devcontainer/init_pipeline.sh`? ¿Por qué los aliases no quedarían disponibles en el shell actual si se usa `bash`?**
+
+---
+
+**`kafka_to_minio.py` arranca automáticamente con `init_pipeline.sh` usando `nohup ... &`. ¿Qué significa cada una de esas dos partes y qué ocurre si se omite alguna de ellas?**
+
+---
+
+**¿Cómo verificarías desde la línea de comandos que `kafka_to_minio.py` está corriendo, cuántos archivos ha escrito en MinIO y qué decía su última línea de log? Escribe los tres comandos.**
+
+---
+
+**¿Por qué `init_pipeline.sh` comprueba si hay exactamente 3 jobs RUNNING antes de lanzarlos? ¿Qué problema evita esa comprobación si se ejecuta el script dos veces seguidas?**
+
+---
+
+**El `minio-writer` usa `consumer.commit()` manual. ¿Qué ocurriría si el proceso se mata justo después de subir un archivo a MinIO pero antes del commit? ¿Y si se mata justo después del commit pero antes de subir?**
+
+---
+
+**`nohup python kafka_to_minio.py > /tmp/minio_writer.log 2>&1 &` — ¿qué significa `2>&1`? ¿Dónde irían los mensajes de error sin esa redirección?**
+
+---
+
+**¿Qué diferencia hay entre `pgrep -f kafka_to_minio` y `pgrep kafka_to_minio`? ¿Por qué en este caso se necesita `-f`?**
+
+---
+
+**En el `flink_analytics_job.py`, la alerta se genera cuando `avg_temp_c > 80`. ¿Qué ventaja tiene calcular la alerta en Flink frente a calcularla en la query Flux de FastAPI o Grafana?**
+
+---
+
+**¿Qué es un `Tumble Window` en Flink y en qué se diferencia de un `Sliding Window`? ¿Podría un mensaje aparecer en dos ventanas Tumble distintas?**
+
+---
+
+**El bridge publica en Kafka con `key=device_id`. Si `sensors_raw` tuviera 4 particiones en lugar de 1, ¿qué garantía de orden se mantendría y cuál se perdería?**
+
+---
+
+**¿Qué es `enable.idempotence=True` en el productor Kafka y qué garantía exacta proporciona? ¿Es suficiente por sí solo para garantizar exactly-once end-to-end en el pipeline?**
+
+---
+
+**El dashboard Streamlit tiene `st.session_state` para mantener el modelo entrenado entre reruns. ¿Por qué Streamlit necesita este mecanismo? ¿Qué ocurre con las variables locales entre dos interacciones del usuario?**
+
+---
+
+**¿Qué es el `Line Protocol` de InfluxDB y qué ventaja tiene sobre enviar los datos en JSON? ¿Por qué `flink_analytics_job.py` lo usa en lugar del SDK oficial?**
+
+---
+
+**¿Por qué el `flink_hash_verifier_job.py` usa la DataStream API y no la Table API como los otros dos jobs? ¿Qué limitación de la Table API lo impide?**
+
+---
+
+**Si añadiéramos una sexta máquina al simulador (`--machines 6`), ¿qué cambios habría que hacer en el pipeline? ¿Qué componentes se adaptan automáticamente y cuáles requieren configuración manual?**

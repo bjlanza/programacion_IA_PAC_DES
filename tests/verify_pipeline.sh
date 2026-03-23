@@ -103,17 +103,31 @@ for line in sys.stdin:
 import sys, json, collections
 reasons = []
 for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
     try:
-        outer = json.loads(line.strip())
-        msg = json.loads(outer.get('value','{}'))
-        r = msg.get('reason', msg.get('error', 'unknown'))
+        outer = json.loads(line)
+        val = outer.get('value')
+        # val puede ser: str JSON-encoded, dict ya parseado, None o ''
+        if isinstance(val, dict):
+            msg = val
+        elif isinstance(val, str) and val:
+            try:
+                msg = json.loads(val)
+            except Exception:
+                msg = {}
+        else:
+            msg = {}
+        r = msg.get('reason') or msg.get('error') or 'unknown'
         reasons.append(r)
-    except: pass
+    except Exception:
+        pass
 if reasons:
     c = collections.Counter(reasons)
     print(', '.join(f'{r}:{n}' for r,n in c.most_common()))
 else:
-    print('(mensajes no parseables)')
+    print('(razones no disponibles — ver rpk topic consume sensors_invalid -n 1)')
 " 2>/dev/null)
         ok "sensors_invalid (DLQ)" "$INV_COUNT mensajes — ${INVALID:-razones no disponibles}"
     else

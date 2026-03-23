@@ -48,8 +48,8 @@
     "ALERT_THRESHOLD": "80.0"
   },
   "hostRequirements": {
-    "cpus": 2,
-    "memory": "8gb"
+    "cpus": 4,
+    "memory": "16gb"
   },
   "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh .devcontainer/init_pipeline.sh",
   "postStartCommand": "bash .devcontainer/start.sh",

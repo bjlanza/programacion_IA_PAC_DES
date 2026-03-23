@@ -90,7 +90,7 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 │   ├── 01_ingestion/
 │   │   ├── sensor_simulator.py         # Emula máquinas con temperatura en C/F/K + hash-chain
 │   │   └── mqtt_to_redpanda_bridge.py  # Hito 1: MQTT → Redpanda con validación
-│   ├── 02_processing/
+│   ├── processing/
 │   │   └── README.md                   # Instrucciones para ejecutar jobs Flink
 │   ├── 03_storage/
 │   │   ├── kafka_to_influx.py          # Consumidor Kafka → InfluxDB (directo)
@@ -147,21 +147,19 @@ Esto:
 - Arranca el **minio-writer** (cold path Python)
 - Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, ...)
 
-Una vez que los aliases estén cargados, instala las herramientas de cliente MQTT si aún no están (necesario una vez por Codespace):
-
-```bash
-mqtt-install   # instala mosquitto-clients (una vez)
-```
-
 ### 3. Arrancar el pipeline completo
 
 > **Mosquitto**, Redpanda, Flink, InfluxDB, MinIO y Grafana ya están corriendo en Docker.
 > Los siguientes procesos hay que lanzarlos manualmente en terminales separadas:
 
 ```bash
-# Terminal 1 — Bridge MQTT → Redpanda (debe arrancar antes que el simulador)
+# Terminal 1 — Bridge MQTT → Redpanda (debe arrancar ANTES que el simulador)
 bridge
 # equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
+
+# Terminal 2 — Simulador de sensores con hash-chaining
+sim
+# equivale a: python src/01_ingestion/sensor_simulator.py
 
 # Terminal 3 — FastAPI REST + modelo IA
 api

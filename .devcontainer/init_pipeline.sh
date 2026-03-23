@@ -143,6 +143,41 @@ rp()  { docker ps -qf "label=com.docker.compose.service=redpanda";   }
 flink-run()  { docker exec "$(jm)" flink run "$@"; }
 flink-list() { curl -s http://jobmanager:8081/jobs | python3 -m json.tool; }
 flink-jobs() { curl -s http://jobmanager:8081/jobs/overview | python3 -c "import sys,json; [print(j['jid'][:8], j['state'], j['name'][:60]) for j in json.load(sys.stdin)['jobs'] if j['state'] not in ('CANCELED','FAILED','FINISHED')]"; }
+flink-status() {
+  echo "=== Jobs activos ==="
+  curl -s http://jobmanager:8081/jobs/overview | python3 -c "
+import sys, json
+jobs = json.load(sys.stdin)['jobs']
+for j in jobs:
+    print(f\"  {j['jid'][:8]}  {j['state']:<10}  {j['name'][:55]}\")
+print(f'  Total: {len(jobs)} jobs')
+"
+  echo ""
+  echo "=== TaskManagers ==="
+  curl -s http://jobmanager:8081/taskmanagers | python3 -c "
+import sys, json
+tms = json.load(sys.stdin)['taskmanagers']
+for t in tms:
+    print(f\"  {t['id']}  slots={t['slotsNumber']}  free={t['freeSlots']}\")
+print(f'  Total TMs: {len(tms)}')
+"
+}
+flink-logs() {
+  for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job; do
+    echo "=== ${JOB} ==="
+    docker exec "$(jm)" bash -c "tail -20 /tmp/${JOB}.log 2>/dev/null || echo '  (sin log)'"
+    echo ""
+  done
+}
+tm-health() {
+  TM_ID="$(docker ps -qf 'label=com.docker.compose.service=taskmanager' | head -1)"
+  if [[ -n "${TM_ID}" ]]; then
+    docker inspect "${TM_ID}" --format='  Restarts={{.State.RestartCount}}  OOM={{.State.OOMKilled}}  Status={{.State.Status}}'
+    docker stats --no-stream --format '  CPU={{.CPUPerc}}  RAM={{.MemUsage}}' "${TM_ID}"
+  else
+    echo "  taskmanager no encontrado"
+  fi
+}
 flink-restart() {
   echo ">>> Relanzando jobs Flink..."
   for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job; do
@@ -156,7 +191,9 @@ flink-restart() {
 
 alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
 alias bridge='python src/01_ingestion/mqtt_to_redpanda_bridge.py'
-alias minio-writer='KAFKA_TOPIC=sensors_clean python src/03_storage/kafka_to_minio.py'
+alias minio-writer='python src/03_storage/kafka_to_minio.py'
+alias minio-status='pgrep -fa kafka_to_minio && tail -20 /tmp/minio_writer.log || echo "minio-writer NO está corriendo. Lanza: minio-writer &"'
+alias minio-log='tail -f /tmp/minio_writer.log'
 alias api='uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload'
 alias ui='streamlit run src/05_ui/app.py --server.port 8501'
 alias nb='jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --ServerApp.token="" --ServerApp.password="" --NotebookApp.token="" --NotebookApp.password=""'
@@ -175,20 +212,25 @@ alias mqtt-sub='mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v'
 alias verify='bash /workspaces/programacion_IA_PAC_DES/tests/verify_pipeline.sh'
 alias verify-db='python /workspaces/programacion_IA_PAC_DES/tests/test_databases.py'
 alias aliases='echo "
-  sim          → Simulador de sensores (5 máquinas, fault-rate 0.1)
-  bridge       → Puente MQTT → Redpanda
-  api          → FastAPI en :8000
-  ui           → Streamlit dashboard en :8501
-  nb           → JupyterLab en :8888
-  flink-run     → flink run dentro del jobmanager
-  flink-list    → Lista jobs Flink (JSON raw)
-  flink-jobs    → Lista jobs con nombre y estado (resumen)
-  flink-restart → Relanza los 3 jobs Flink
-  resources     → CPU, RAM, disco y stats de contenedores
-  verify       → Verificación completa del pipeline
-  mqtt-install → Instala mosquitto-clients
-  mqtt-sub     → Suscribe a sensors/telemetry
-  aliases      → Muestra esta ayuda
+  sim            → Simulador de sensores (5 máquinas, fault-rate 0.1)
+  bridge         → Puente MQTT → Redpanda
+  minio-writer   → Cold path: kafka_to_minio.py (lanzar en background: minio-writer &)
+  minio-status   → Verifica si minio-writer está corriendo + últimas líneas de log
+  minio-log      → Sigue el log de minio-writer en tiempo real
+  api            → FastAPI en :8000
+  ui             → Streamlit dashboard en :8501
+  nb             → JupyterLab en :8888
+  flink-run      → flink run dentro del jobmanager
+  flink-list     → Lista jobs Flink (JSON raw)
+  flink-jobs     → Lista jobs activos con nombre y estado
+  flink-status   → Resumen de jobs + TaskManagers y slots
+  flink-logs     → Últimas 20 líneas de cada log de job
+  flink-restart  → Relanza los 3 jobs Flink
+  tm-health      → Restarts, OOM y recursos del TaskManager
+  resources      → CPU, RAM, disco y stats de contenedores
+  verify         → Verificación completa del pipeline
+  mqtt-sub       → Suscribe a sensors/telemetry
+  aliases        → Muestra esta ayuda
 "'
 # === fin ILERNA PAC DES helpers ===
 BASHRC_EOF
@@ -214,5 +256,5 @@ echo    "║  ⚪ Streamlit         → http://localhost:18501       ║"
 echo    "║  ⚪ Jupyter           → http://localhost:18888       ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
-echo "    Aliases disponibles: sim | bridge | api | ui | nb | flink-run | flink-list | flink-jobs | flink-restart | mqtt-install | mqtt-sub"
+echo "    Aliases disponibles: sim | bridge | minio-writer | minio-status | minio-log | api | ui | nb | flink-run | flink-list | flink-jobs | flink-restart | mqtt-sub | verify | aliases"
 echo ""

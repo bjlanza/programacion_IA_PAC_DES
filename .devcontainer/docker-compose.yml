@@ -161,8 +161,9 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: jobmanager
-        taskmanager.numberOfTaskSlots: 6
-        taskmanager.memory.process.size: 2048m
+        taskmanager.numberOfTaskSlots: 4
+        taskmanager.memory.process.size: 1536m
+        python.fn-execution.memory.managed.fraction: 0.3
     volumes:
       - ../jobs:/opt/flink/jobs
     healthcheck:
