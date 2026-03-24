@@ -34,7 +34,6 @@
     "MQTT_TOPIC": "sensors/telemetry",
     "KAFKA_BROKER": "redpanda:29092",
     "KAFKA_BOOTSTRAP": "redpanda:29092",
-    "KAFKA_TOPIC": "sensors_raw",
     "INFLUX_URL": "http://influxdb:8086",
     "INFLUX_TOKEN": "supersecrettoken",
     "INFLUX_ORG": "ilerna",
@@ -51,7 +50,7 @@
     "cpus": 4,
     "memory": "16gb"
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh .devcontainer/init_pipeline.sh",
+  "postCreateCommand": "pip install --upgrade pip && pip install -r config/requirements.txt && chmod +x .devcontainer/start.sh .devcontainer/init_pipeline.sh && python3 -c \"import duckdb; duckdb.connect().execute('INSTALL httpfs')\" 2>/dev/null || true",
   "postStartCommand": "bash .devcontainer/start.sh",
   "forwardPorts": [
     11883,

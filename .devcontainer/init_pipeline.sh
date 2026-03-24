@@ -16,7 +16,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. Topics Redpanda ───────────────────────────────────────
-echo ">>> [1/3] Recreando topics Kafka (purga mensajes de sesiones anteriores)..."
+echo ">>> [1/4] Recreando topics Kafka (purga mensajes de sesiones anteriores)..."
 RP_ID="$(docker ps -qf 'label=com.docker.compose.service=redpanda' 2>/dev/null | head -1 || true)"
 
 if [[ -n "${RP_ID}" ]]; then
@@ -32,7 +32,7 @@ fi
 
 # ── 2. Bucket MinIO ──────────────────────────────────────────
 echo ""
-echo ">>> [2/3] Creando bucket MinIO y purgando archivos con schema incorrecto..."
+echo ">>> [2/4] Creando bucket MinIO y purgando archivos con schema incorrecto..."
 python3 -c "
 from minio import Minio
 import json, sys
