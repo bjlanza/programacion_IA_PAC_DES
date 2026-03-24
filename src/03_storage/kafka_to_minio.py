@@ -149,7 +149,10 @@ def run():
 
             if time.monotonic() - window_start >= WINDOW_SECONDS:
                 if window and _flush(minio_client, window):
-                    consumer.commit(asynchronous=False)
+                    try:
+                        consumer.commit(asynchronous=False)
+                    except Exception:
+                        pass
                     window = []
                 window_start = time.monotonic()
 

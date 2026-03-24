@@ -936,6 +936,15 @@ with tab_ai:
                     template="plotly_dark",
                 )
                 fig.add_hline(y=ALERT_THRESHOLD, line_dash="dash", line_color="orange")
+                fig.update_layout(
+                    legend=dict(
+                        orientation="h",
+                        yanchor="top",
+                        y=-0.2,
+                        xanchor="left",
+                        x=0,
+                    )
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
                 # ── Histograma de scores ──────────────────────

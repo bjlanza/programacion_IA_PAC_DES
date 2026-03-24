@@ -74,15 +74,12 @@ Los dashboards están definidos en `config/grafana/provisioning/dashboards/` y G
 
 | Archivo | UID | Título |
 |---|---|---|
-| `pipeline.json` | `ilerna-smartindustry` | ILERNA Smart-Industry — Telemetría IoT |
 | `redpanda.json` | `ilerna-redpanda` | ILERNA Smart-Industry — Redpanda / Kafka |
-| `fastapi.json` | *(ver archivo)* | ILERNA Smart-Industry — FastAPI |
 
 Para ver el JSON actual de un dashboard desde la API de Grafana:
 
 ```
 http://localhost:13000/api/dashboards/uid/ilerna-redpanda
-http://localhost:13000/api/dashboards/uid/ilerna-smartindustry
 ```
 
 ### Otros endpoints de la API de Grafana

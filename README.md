@@ -149,8 +149,10 @@ Esto:
 
 ### 3. Arrancar el pipeline completo
 
-> **Mosquitto**, Redpanda, Flink, InfluxDB, MinIO y Grafana ya están corriendo en Docker.
-> Los siguientes procesos hay que lanzarlos manualmente en terminales separadas:
+> **Importante:** `init_pipeline.sh` ya arranca el `minio-writer` automáticamente y espera
+> a que los 3 jobs Flink estén `RUNNING`. **No arranques `sim` hasta que el script confirme
+> que los jobs están listos** — si el simulador arranca antes que el hash verifier,
+> todos los mensajes irán al DLQ y `sensors_verified` quedará vacío.
 
 ```bash
 # Terminal 1 — Bridge MQTT → Redpanda (debe arrancar ANTES que el simulador)
@@ -158,6 +160,7 @@ bridge
 # equivale a: python src/01_ingestion/mqtt_to_redpanda_bridge.py
 
 # Terminal 2 — Simulador de sensores con hash-chaining
+# ⚠️  Solo arrancar después de que init_pipeline.sh haya confirmado los 3 jobs RUNNING
 sim
 # equivale a: python src/01_ingestion/sensor_simulator.py
 
@@ -173,6 +176,10 @@ ui
 mqtt-sub
 # equivale a: mosquitto_sub -h mosquitto -p 1883 -t "sensors/telemetry" -v
 ```
+
+> **minio-writer** ya corre en background (arrancado por `init_pipeline.sh`).
+> Verifica con `minio-status`. Si se cayó, relánzalo con `minio-writer &`.
+> Escribe archivos JSON a MinIO cada 60s — espera ~1 min para ver el primer archivo.
 
 En ~30 segundos empezarán a llegar datos a Redpanda y desde ahí Flink los procesará hacia InfluxDB y MinIO.
 
@@ -315,9 +322,35 @@ pgrep -fa kafka_to_minio
 
 ### `sensors_verified` tiene 0 mensajes (todo va al DLQ)
 
-El job `flink_hash_verifier_job` recomputa el hash. Si el hash no coincide, todo va a `sensors_invalid`.
+**Causa:** el simulador arrancó antes que el hash verifier, o el Codespace fue reiniciado
+(los topics conservan mensajes de la sesión anterior y la cadena hash se rompe).
 
-Causa más frecuente: el `compute_hash` en el job usa campos distintos a los que usó el simulador al firmar.
+**Solución — purgar topics y reiniciar en orden correcto:**
+
+```bash
+# 1. Para el simulador
+pkill -f simulator.py
+
+# 2. Purga topics (borra mensajes viejos)
+RP="$(docker ps -qf 'label=com.docker.compose.service=redpanda')"
+for T in sensors_raw sensors_clean sensors_verified sensors_invalid; do
+  docker exec "$RP" rpk topic delete "$T" 2>/dev/null
+  docker exec "$RP" rpk topic create "$T" -p 1 -r 1
+done
+
+# 3. Reinicia jobs Flink (cancela existentes y relanza)
+flink-restart
+
+# 4. Espera ~15s a que los jobs estén RUNNING
+flink-jobs
+
+# 5. Arranca bridge y luego sim
+bridge &
+sleep 3
+sim &
+```
+
+Tras esto `sensors_verified` empezará a recibir mensajes en ~30 segundos.
 
 ```bash
 # Comprobar cuántos mensajes hay en cada topic

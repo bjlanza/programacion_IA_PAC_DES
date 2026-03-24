@@ -113,6 +113,30 @@ if [[ -n "${JM_ID}" ]]; then
         || echo -e " ${YELLOW}⚠️  (ver /tmp/flink_${JOB%.py}.log)${NC}"
       sleep 4
     done
+
+    # Esperar a que los 3 jobs estén RUNNING antes de continuar
+    echo -n "    Esperando RUNNING"
+    MAX_WAIT=90
+    WAITED=0
+    while true; do
+      RUNNING_COUNT=$(curl -s http://jobmanager:8081/jobs/overview 2>/dev/null \
+        | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(len([j for j in d.get('jobs',[]) if j['status']=='RUNNING']))
+" 2>/dev/null || echo 0)
+      if [[ "${RUNNING_COUNT}" -ge 3 ]]; then
+        echo -e " ${GREEN}✅ Los 3 jobs están RUNNING${NC}"
+        break
+      fi
+      if [[ ${WAITED} -ge ${MAX_WAIT} ]]; then
+        echo -e " ${YELLOW}⚠️  Timeout — verifica con: flink-jobs${NC}"
+        break
+      fi
+      echo -n "."
+      sleep 3
+      WAITED=$((WAITED + 3))
+    done
   fi
 else
   echo -e "    ${YELLOW}⚠️  jobmanager no encontrado${NC}"
@@ -126,15 +150,24 @@ if pgrep -f "kafka_to_minio.py" > /dev/null 2>&1; then
 else
   nohup python /workspaces/programacion_IA_PAC_DES/src/03_storage/kafka_to_minio.py \
     > /tmp/minio_writer.log 2>&1 &
-  echo -e "    ${GREEN}✅ minio-writer arrancado (PID $!)  — log: /tmp/minio_writer.log${NC}"
+  MINIO_PID=$!
+  sleep 3
+  if kill -0 "${MINIO_PID}" 2>/dev/null; then
+    echo -e "    ${GREEN}✅ minio-writer corriendo (PID ${MINIO_PID}) — log: /tmp/minio_writer.log${NC}"
+  else
+    echo -e "    ${RED}❌ minio-writer se cayó al arrancar — revisa: tail /tmp/minio_writer.log${NC}"
+  fi
 fi
 
 # ── Aliases de desarrollo ────────────────────────────────────
 BASHRC="/home/vscode/.bashrc"
 MARKER="# === ILERNA PAC DES helpers ==="
 
-if ! grep -q "${MARKER}" "${BASHRC}" 2>/dev/null; then
-  cat >> "${BASHRC}" << 'BASHRC_EOF'
+# Eliminar bloque anterior si existe (para actualizar aliases al re-ejecutar)
+if grep -q "${MARKER}" "${BASHRC}" 2>/dev/null; then
+  sed -i "/^# === ILERNA PAC DES helpers ===/,/^# === fin ILERNA PAC DES helpers ===/d" "${BASHRC}"
+fi
+cat >> "${BASHRC}" << 'BASHRC_EOF'
 
 # === ILERNA PAC DES helpers ===
 jm()  { docker ps -qf "label=com.docker.compose.service=jobmanager"; }
@@ -179,14 +212,33 @@ tm-health() {
   fi
 }
 flink-restart() {
+  local JM_ID
+  JM_ID="$(jm)"
+  echo ">>> Cancelando jobs existentes..."
+  local ACTIVE_IDS
+  ACTIVE_IDS=$(docker exec "${JM_ID}" bash -c "curl -s http://localhost:8081/jobs/overview" 2>/dev/null \
+    | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print(' '.join(j['jid'] for j in d.get('jobs',[]) if j['status'] not in ('CANCELED','FINISHED')))
+" 2>/dev/null || echo "")
+  if [[ -n "${ACTIVE_IDS}" ]]; then
+    for ID in ${ACTIVE_IDS}; do
+      docker exec "${JM_ID}" bash -c "curl -s -X PATCH 'http://localhost:8081/jobs/${ID}?mode=cancel' > /dev/null"
+      echo "  Cancelado: ${ID:0:8}"
+    done
+    sleep 5
+  else
+    echo "  No hay jobs activos"
+  fi
   echo ">>> Relanzando jobs Flink..."
   for JOB in flink_normalization_job flink_hash_verifier_job flink_analytics_job; do
     echo "  Lanzando ${JOB}..."
-    docker exec "$(jm)" bash -c "nohup flink run -py /opt/flink/jobs/${JOB}.py > /tmp/${JOB}.log 2>&1 &"
+    docker exec "${JM_ID}" bash -c "nohup flink run -py /opt/flink/jobs/${JOB}.py > /tmp/${JOB}.log 2>&1 &"
     sleep 4
   done
   echo ">>> Estado:"
-  flink-list
+  flink-jobs
 }
 
 alias sim='python src/01_ingestion/sensor_simulator.py --machines 5 --fault-rate 0.1'
