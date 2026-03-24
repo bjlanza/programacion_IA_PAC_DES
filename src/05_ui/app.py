@@ -440,7 +440,7 @@ with tab_rt:
             height=280,
             template="plotly_dark",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # Sparklines minitrend por máquina
         st.markdown("#### Tendencia reciente por máquina")
@@ -463,7 +463,7 @@ with tab_rt:
                             showlegend=False, template="plotly_dark",
                             xaxis=dict(visible=False), yaxis=dict(visible=False),
                         )
-                        st.plotly_chart(fig_sp, use_container_width=True)
+                        st.plotly_chart(fig_sp, width='stretch')
 
 
 # ── TAB 2: Historial ─────────────────────────────────────────
@@ -531,7 +531,7 @@ with tab_hist:
             xaxis_title="Tiempo", yaxis_title="Temperatura media (°C)",
             height=420, template="plotly_dark",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # ── Comparativa de dos máquinas ────────────────────────
         if len(all_devices) >= 2:
@@ -554,7 +554,7 @@ with tab_hist:
                     height=300, template="plotly_dark",
                     xaxis_title="Tiempo", yaxis_title="°C",
                 )
-                st.plotly_chart(fig_cmp, use_container_width=True)
+                st.plotly_chart(fig_cmp, width='stretch')
 
         st.download_button(
             "⬇️ Descargar CSV (historial completo)",
@@ -564,7 +564,7 @@ with tab_hist:
         )
         st.dataframe(
             plot_df.tail(50).sort_values("ts", ascending=False),
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
         )
 
@@ -589,7 +589,7 @@ with tab_alerts:
             template="plotly_dark",
         )
         fig.add_hline(y=ALERT_THRESHOLD, line_dash="dash", line_color="orange")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # ── Timeline estilo Gantt ─────────────────────────────
         st.markdown("#### Timeline de alertas por máquina")
@@ -605,7 +605,7 @@ with tab_alerts:
             labels={"avg_temp_c": "°C"},
         )
         fig_gantt.update_layout(height=250, template="plotly_dark")
-        st.plotly_chart(fig_gantt, use_container_width=True)
+        st.plotly_chart(fig_gantt, width='stretch')
 
         # ── Alertas por hora del día ──────────────────────────
         st.markdown("#### ¿A qué hora fallan más las máquinas?")
@@ -623,7 +623,7 @@ with tab_alerts:
         )
         fig_hour.update_xaxes(tickmode="linear", dtick=1)
         fig_hour.update_layout(height=300)
-        st.plotly_chart(fig_hour, use_container_width=True)
+        st.plotly_chart(fig_hour, width='stretch')
 
         st.download_button(
             "⬇️ Descargar CSV (alertas)",
@@ -631,7 +631,7 @@ with tab_alerts:
             file_name=f"alertas_{alert_range}min.csv",
             mime="text/csv",
         )
-        st.dataframe(alerts_df, use_container_width=True, hide_index=True)
+        st.dataframe(alerts_df, width='stretch', hide_index=True)
 
 # ── TAB 4: Lambda Architecture Query Federada ─────────────────
 with tab_lambda:
@@ -694,7 +694,7 @@ with tab_lambda:
                 margin=dict(l=0, r=0, t=0, b=0),
                 xaxis=dict(showticklabels=False),
             )
-            st.plotly_chart(fig_prop, use_container_width=True)
+            st.plotly_chart(fig_prop, width='stretch')
 
         if hot_count + cold_count == 0:
             st.warning("Sin datos en ninguna fuente. ¿Está el pipeline corriendo?")
@@ -740,10 +740,12 @@ with tab_lambda:
                 },
                 opacity=0.7,
             )
+            # Hot points más grandes para que no se pierdan entre los cold
+            fig.for_each_trace(lambda t: t.update(marker_size=14) if "(hot)" in t.name else t.update(marker_size=6))
             fig.add_hline(y=ALERT_THRESHOLD, line_dash="dash", line_color="orange",
                           annotation_text=f"Umbral {ALERT_THRESHOLD}°C")
             fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             # ── Estadísticas DuckDB en memoria ────────────────
             st.subheader("Estadísticas por fuente y máquina (DuckDB in-memory)")
@@ -765,7 +767,7 @@ with tab_lambda:
                 ORDER BY source, device_id
             """).df()
             conn.close()
-            st.dataframe(stats_df, use_container_width=True, hide_index=True)
+            st.dataframe(stats_df, width='stretch', hide_index=True)
 
             # ── Breakdown por partición (cold path) ───────────
             if not cold_df.empty and "hour" in cold_df.columns:
@@ -789,7 +791,7 @@ with tab_lambda:
                     color_continuous_scale="Blues",
                 )
                 fig_part.update_layout(height=300, xaxis_tickangle=-45)
-                st.plotly_chart(fig_part, use_container_width=True)
+                st.plotly_chart(fig_part, width='stretch')
 
 
 # ── TAB 5: IA — Detección de Anomalías ───────────────────────
@@ -945,7 +947,7 @@ with tab_ai:
                         x=0,
                     )
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
                 # ── Histograma de scores ──────────────────────
                 st.markdown("#### Distribución de anomaly scores")
@@ -962,7 +964,7 @@ with tab_ai:
                     xaxis_title="Anomaly Score", yaxis_title="Frecuencia",
                     height=300, template="plotly_dark",
                 )
-                st.plotly_chart(fig_hist, use_container_width=True)
+                st.plotly_chart(fig_hist, width='stretch')
 
                 # ── Tabla resumen por máquina ─────────────────
                 summary = res_df.groupby("device_id").agg(
@@ -973,7 +975,7 @@ with tab_ai:
                 ).reset_index()
                 summary["score_medio"] = summary["score_medio"].round(4)
                 summary["prob_media"]  = summary["prob_media"].apply(lambda x: f"{x:.1%}")
-                st.dataframe(summary, use_container_width=True, hide_index=True)
+                st.dataframe(summary, width='stretch', hide_index=True)
 
                 st.download_button(
                     "⬇️ Descargar CSV (resultados IA)",
@@ -1036,7 +1038,7 @@ with tab_health:
 
         st.dataframe(
             jobs_df.style.map(_color_estado, subset=["estado"]),
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
         )
 
@@ -1059,7 +1061,7 @@ with tab_health:
         topic_rows = []
         for t, info in offsets.items():
             topic_rows.append({"topic": t, "particiones": info["particiones"], "estado": info["estado"]})
-        st.dataframe(pd.DataFrame(topic_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(topic_rows), width='stretch', hide_index=True)
 
     st.divider()
 
@@ -1122,7 +1124,7 @@ with tab_hash:
                 "ts":        m.get("ts", "—"),
                 "hash":      m.get("hash", "—")[:16] + "…" if m.get("hash") else "—",
             })
-        st.dataframe(pd.DataFrame(dlq_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(dlq_rows), width='stretch', hide_index=True)
 
         # Gráfico de razones de rechazo
         if dlq_rows:
@@ -1139,7 +1141,7 @@ with tab_hash:
                 color="count",
                 color_continuous_scale="Reds",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         # Distribución por máquina
         device_counts = pd.DataFrame(dlq_rows)["device_id"].value_counts().reset_index()
@@ -1153,7 +1155,7 @@ with tab_hash:
             color="rechazados",
             color_continuous_scale="OrRd",
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width='stretch')
 
     st.divider()
 
@@ -1272,7 +1274,7 @@ with tab_advanced:
                     height=420,
                     template="plotly_dark",
                 )
-                st.plotly_chart(fig_prop, use_container_width=True)
+                st.plotly_chart(fig_prop, width='stretch')
 
                 future_alerts = future_fc[future_fc["yhat"] > ALERT_THRESHOLD]
                 if not future_alerts.empty:
@@ -1402,7 +1404,7 @@ with tab_advanced:
                         height=300,
                         template="plotly_dark",
                     )
-                    st.plotly_chart(fig_imp, use_container_width=True)
+                    st.plotly_chart(fig_imp, width='stretch')
 
                     # Confusion matrix
                     cm = confusion_matrix(y_test, y_pred)
@@ -1416,7 +1418,7 @@ with tab_advanced:
                         title="Matriz de confusión (test set)",
                     )
                     fig_cm.update_layout(height=300, template="plotly_dark")
-                    st.plotly_chart(fig_cm, use_container_width=True)
+                    st.plotly_chart(fig_cm, width='stretch')
 
                     # Probabilidad predicha en el tiempo para una máquina
                     rf_df["prob_alert"] = clf.predict_proba(X)[:, 1]
@@ -1448,7 +1450,7 @@ with tab_advanced:
                             height=350,
                             template="plotly_dark",
                         )
-                        st.plotly_chart(fig_prob, use_container_width=True)
+                        st.plotly_chart(fig_prob, width='stretch')
 
         # ── 3. CUSUM Change Point Detection ────────────────────────────
         st.divider()
@@ -1532,7 +1534,7 @@ with tab_advanced:
                     height=380,
                     template="plotly_dark",
                 )
-                st.plotly_chart(fig_cusum, use_container_width=True)
+                st.plotly_chart(fig_cusum, width='stretch')
 
                 if breakpoints:
                     st.markdown("#### Estadísticas por régimen")
@@ -1552,7 +1554,7 @@ with tab_advanced:
                         })
                     st.dataframe(
                         pd.DataFrame(regime_rows),
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                     )
 
@@ -1630,7 +1632,7 @@ with tab_advanced:
                 )
                 fig_km1.update_traces(textposition="top center")
                 fig_km1.update_layout(height=420)
-                st.plotly_chart(fig_km1, use_container_width=True)
+                st.plotly_chart(fig_km1, width='stretch')
 
                 # Scatter: max_c vs alert_rate
                 fig_km2 = px.scatter(
@@ -1650,7 +1652,7 @@ with tab_advanced:
                 )
                 fig_km2.update_traces(textposition="top center")
                 fig_km2.update_layout(height=350)
-                st.plotly_chart(fig_km2, use_container_width=True)
+                st.plotly_chart(fig_km2, width='stretch')
 
                 # Tabla de asignación
                 st.markdown("#### Asignación de clusters")
@@ -1665,7 +1667,7 @@ with tab_advanced:
                 display_df["alert_rate"] = display_df["alert_rate"].apply(
                     lambda x: f"{x:.1%}"
                 )
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.dataframe(display_df, width='stretch', hide_index=True)
 
                 # Centroides
                 st.markdown("#### Centroides de clusters (escala original)")
@@ -1676,7 +1678,7 @@ with tab_advanced:
                     centroid_vals, columns=features_km
                 ).round(2)
                 centroid_df.insert(0, "cluster", [str(i) for i in range(n_clusters)])
-                st.dataframe(centroid_df, use_container_width=True, hide_index=True)
+                st.dataframe(centroid_df, width='stretch', hide_index=True)
 
 
 # ── TAB 9: Ayuda ──────────────────────────────────────────────
@@ -1780,7 +1782,7 @@ with tab_help:
         ]
         st.dataframe(
             pd.DataFrame(config_rows, columns=["Variable", "Valor"]),
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
         )
 
@@ -1834,7 +1836,7 @@ streamlit run src/05_ui/app.py --server.port 8501
     ]
     st.dataframe(
         pd.DataFrame(services_info, columns=["Servicio", "Puerto", "Descripción", "Credenciales"]),
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
     )
 

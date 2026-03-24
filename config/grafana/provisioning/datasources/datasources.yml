@@ -25,3 +25,9 @@ datasources:
     type: yesoreyeram-infinity-datasource
     access: proxy
     editable: true
+    jsonData:
+      allowedHosts:
+        - http://redpanda:9644
+        - http://redpanda:8082
+        - http://jobmanager:8081
+        - http://workspace:8000
