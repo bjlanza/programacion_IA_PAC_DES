@@ -354,148 +354,137 @@
     },
     {
       "id": 6,
-      "type": "table",
-      "title": "Mensajes por topic (watermark)",
-      "description": "High-watermark = total mensajes escritos en cada partición",
-      "gridPos": {
-        "x": 0,
-        "y": 10,
-        "w": 24,
-        "h": 7
-      },
-      "datasource": {
-        "type": "yesoreyeram-infinity-datasource",
-        "uid": "infinity"
-      },
+      "type": "stat",
+      "title": "sensors_raw — mensajes",
+      "description": "High-watermark: total mensajes escritos",
+      "gridPos": { "x": 0, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
       "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "show": false
-        }
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "text": {}
       },
       "fieldConfig": {
         "defaults": {
-          "custom": {
-            "align": "left"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Mensajes"
-            },
-            "properties": [
-              {
-                "id": "custom.displayMode",
-                "value": "lcd-gauge"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "continuous-BlPu"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          }
-        ]
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "unit": "short",
+          "noValue": "0"
+        }
       },
       "targets": [
         {
-          "refId": "sensors_raw",
-          "datasource": {
-            "type": "yesoreyeram-infinity-datasource",
-            "uid": "infinity"
-          },
+          "refId": "A",
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics/sensors_raw/partitions/0/replicas",
-          "url_options": {
-            "method": "GET"
-          },
+          "parser": "backend",
+          "url": "http://redpanda:9644/v1/partitions/kafka/sensors_raw/0",
+          "url_options": { "method": "GET" },
           "root_selector": "",
-          "columns": [
-            {
-              "selector": "high_watermark",
-              "text": "sensors_raw",
-              "type": "number"
-            }
-          ],
-          "parser": "backend"
-        },
+          "columns": [{ "selector": "high_watermark", "text": "Mensajes", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "sensors_clean — mensajes",
+      "description": "High-watermark: total mensajes escritos",
+      "gridPos": { "x": 6, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
         {
-          "refId": "sensors_clean",
-          "datasource": {
-            "type": "yesoreyeram-infinity-datasource",
-            "uid": "infinity"
-          },
+          "refId": "A",
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics/sensors_clean/partitions/0/replicas",
-          "url_options": {
-            "method": "GET"
-          },
+          "parser": "backend",
+          "url": "http://redpanda:9644/v1/partitions/kafka/sensors_clean/0",
+          "url_options": { "method": "GET" },
           "root_selector": "",
-          "columns": [
-            {
-              "selector": "high_watermark",
-              "text": "sensors_clean",
-              "type": "number"
-            }
-          ],
-          "parser": "backend"
-        },
+          "columns": [{ "selector": "high_watermark", "text": "Mensajes", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "sensors_verified — mensajes",
+      "description": "High-watermark: total mensajes verificados (hash OK)",
+      "gridPos": { "x": 12, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
         {
-          "refId": "sensors_verified",
-          "datasource": {
-            "type": "yesoreyeram-infinity-datasource",
-            "uid": "infinity"
-          },
+          "refId": "A",
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics/sensors_verified/partitions/0/replicas",
-          "url_options": {
-            "method": "GET"
-          },
+          "parser": "backend",
+          "url": "http://redpanda:9644/v1/partitions/kafka/sensors_verified/0",
+          "url_options": { "method": "GET" },
           "root_selector": "",
-          "columns": [
-            {
-              "selector": "high_watermark",
-              "text": "sensors_verified",
-              "type": "number"
-            }
-          ],
-          "parser": "backend"
-        },
+          "columns": [{ "selector": "high_watermark", "text": "Mensajes", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "sensors_invalid (DLQ) — mensajes",
+      "description": "High-watermark: mensajes rechazados por hash-chain",
+      "gridPos": { "x": 18, "y": 10, "w": 6, "h": 4 },
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "infinity" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "text": {}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
         {
-          "refId": "sensors_invalid",
-          "datasource": {
-            "type": "yesoreyeram-infinity-datasource",
-            "uid": "infinity"
-          },
+          "refId": "A",
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://redpanda:9644/v1/topics/sensors_invalid/partitions/0/replicas",
-          "url_options": {
-            "method": "GET"
-          },
+          "parser": "backend",
+          "url": "http://redpanda:9644/v1/partitions/kafka/sensors_invalid/0",
+          "url_options": { "method": "GET" },
           "root_selector": "",
-          "columns": [
-            {
-              "selector": "high_watermark",
-              "text": "sensors_invalid",
-              "type": "number"
-            }
-          ],
-          "parser": "backend"
+          "columns": [{ "selector": "high_watermark", "text": "Mensajes", "type": "number" }]
         }
       ]
     }
