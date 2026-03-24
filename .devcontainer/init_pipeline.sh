@@ -16,14 +16,15 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. Topics Redpanda ───────────────────────────────────────
-echo ">>> [1/3] Creando topics Kafka..."
+echo ">>> [1/3] Recreando topics Kafka (purga mensajes de sesiones anteriores)..."
 RP_ID="$(docker ps -qf 'label=com.docker.compose.service=redpanda' 2>/dev/null | head -1 || true)"
 
 if [[ -n "${RP_ID}" ]]; then
   for TOPIC in sensors_raw sensors_clean sensors_invalid sensors_verified; do
-    docker exec "${RP_ID}" rpk topic create "${TOPIC}" -p 1 -r 1 2>/dev/null \
-      && echo -e "    ${GREEN}✅ Topic ${TOPIC} creado${NC}" \
-      || echo -e "    ${YELLOW}ℹ️  Topic ${TOPIC} ya existe${NC}"
+    docker exec "${RP_ID}" rpk topic delete "${TOPIC}" > /dev/null 2>&1 || true
+    docker exec "${RP_ID}" rpk topic create "${TOPIC}" -p 1 -r 1 > /dev/null 2>&1 \
+      && echo -e "    ${GREEN}✅ Topic ${TOPIC} recreado${NC}" \
+      || echo -e "    ${YELLOW}⚠️  No se pudo crear topic ${TOPIC}${NC}"
   done
 else
   echo -e "    ${YELLOW}⚠️  Redpanda no encontrado${NC}"
@@ -31,17 +32,44 @@ fi
 
 # ── 2. Bucket MinIO ──────────────────────────────────────────
 echo ""
-echo ">>> [2/3] Creando bucket MinIO..."
+echo ">>> [2/3] Creando bucket MinIO y purgando archivos con schema incorrecto..."
 python3 -c "
 from minio import Minio
-import sys
+import json, sys
+
 try:
     c = Minio('minio:9000', access_key='admin', secret_key='Ilerna_Programaci0n', secure=False)
+
     if not c.bucket_exists('datalake'):
         c.make_bucket('datalake')
         print('    \033[32m✅ Bucket datalake creado\033[0m')
     else:
         print('    \033[33mℹ️  Bucket datalake ya existe\033[0m')
+
+    # Purgar archivos con schema incorrecto (temperature en lugar de temperature_c).
+    # Ocurre cuando el pipeline se ejecutó antes de que la normalización Flink estuviera
+    # lista, escribiendo datos de sensors_raw en lugar de sensors_clean.
+    objs = list(c.list_objects('datalake', prefix='clean/', recursive=True))
+    if objs:
+        sample_obj = objs[0]
+        data = c.get_object('datalake', sample_obj.object_name)
+        first_line = data.read(512).decode('utf-8', errors='ignore').splitlines()[0]
+        data.close()
+        try:
+            fields = set(json.loads(first_line).keys())
+        except Exception:
+            fields = set()
+
+        if 'temperature' in fields and 'temperature_c' not in fields:
+            for o in objs:
+                c.remove_object('datalake', o.object_name)
+            print(f'    \033[33m⚠️  Schema incorrecto detectado (temperature sin _c) — {len(objs)} archivos purgados\033[0m')
+            print(f'    \033[32m✅ MinIO listo para recibir datos con schema correcto (temperature_c)\033[0m')
+        else:
+            print(f'    \033[32m✅ {len(objs)} archivos en datalake con schema correcto\033[0m')
+    else:
+        print('    \033[32m✅ Bucket datalake vacío — listo\033[0m')
+
 except Exception as e:
     print(f'    \033[33m⚠️  MinIO no disponible: {e}\033[0m', file=sys.stderr)
 " 2>&1 || true
@@ -286,8 +314,7 @@ alias aliases='echo "
 "'
 # === fin ILERNA PAC DES helpers ===
 BASHRC_EOF
-  echo -e "    ${GREEN}✅ Aliases de desarrollo añadidos a ~/.bashrc${NC}"
-fi
+echo -e "    ${GREEN}✅ Aliases de desarrollo añadidos a ~/.bashrc${NC}"
 
 # Cargar aliases en el shell actual (funciona si el script se ejecuta con 'source')
 # shellcheck disable=SC1090

@@ -28,13 +28,19 @@ from typing import Any
 # Hash inicial para el primer mensaje de cada device (sin predecesor)
 GENESIS_HASH = "0" * 64
 
-# Campos que se incluyen en el cálculo del hash (deben coincidir con sensor_simulator.py)
-HASH_FIELDS = {"device_id", "temperature", "unit", "ts", "_ingested_at"}
+# Campos que el bridge añade DESPUÉS de que el simulador firmó.
+# Se excluyen del hash para que la verificación coincida con la firma original.
+BRIDGE_ADDED_FIELDS = {"_ingested_at", "_mqtt_topic", "_mqtt_qos"}
+EXCLUDE_FROM_HASH   = {"hash", "prev_hash"} | BRIDGE_ADDED_FIELDS
 
 
 def _content_for_hash(msg: dict[str, Any]) -> dict[str, Any]:
-    """Extrae los campos del mensaje que participan en el hash."""
-    return {k: msg[k] for k in HASH_FIELDS if k in msg}
+    """Extrae los campos del mensaje que participan en el hash.
+
+    El simulador firma con todos los campos excepto 'hash' y 'prev_hash'.
+    Los campos añadidos por el bridge también se excluyen.
+    """
+    return {k: v for k, v in msg.items() if k not in EXCLUDE_FROM_HASH}
 
 
 def compute_hash(msg: dict[str, Any], prev_hash: str) -> str:

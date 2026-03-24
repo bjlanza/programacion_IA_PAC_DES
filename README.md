@@ -11,52 +11,62 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 [Mosquitto]  :11883
         │
         ▼
-[mqtt_to_redpanda_bridge.py]  ← Hito 1
-  · Valida esquema JSON
-  · Enriquece con metadatos
+[mqtt_to_redpanda_bridge.py]              ← Hito 1
+  · Valida schema (device_id, temperature, unit, ts)
+  · Valida unit ∈ {C, F, K}
+  · Enriquece con _mqtt_topic, _ingested_at
+  · Publica con enable.idempotence=True, key=device_id
         │  Kafka  sensors_raw
         ▼
 [Redpanda]  :19092
         │
-        ├──▶ [flink_hash_verifier_job.py]   ← Seguridad
-        │      · Verifica SHA256 hash-chain por device
+        ├──▶ [flink_hash_verifier_job.py]      ← Seguridad
+        │      · DataStream API + KeyedProcessFunction
+        │      · Verifica SHA256 hash-chain por device_id
         │      · OK  → sensors_verified
         │      · KO  → sensors_invalid (DLQ)
+        │      ⚠️  Debe estar RUNNING antes de que arranque el simulador
         │
-        └──▶ [flink_normalization_job.py]   ← Hito 2
-               · UDF to_celsius (F/K → °C)
-               · Filtra datos corruptos
+        └──▶ [flink_normalization_job.py]      ← Hito 2
+               · Table API + UDF ScalarFunction to_celsius
+               · F→C: (F-32)×5/9  |  K→C: K-273.15
+               · StatementSet: válidos → sensors_clean, inválidos → sensors_invalid
                        │  Kafka  sensors_clean
+                       │  {device_id, temperature_c, unit_original, ts, _ingested_at}
                        ▼
-              [flink_analytics_job.py]      ← Hito 3
-               · Tumble Window 1 min / device
-               · ALERTA si avg > 80°C
+              [flink_analytics_job.py]         ← Hito 3
+               · Table API + Tumble Window 1 min / device_id
+               · Watermark 10s (tolera mensajes desordenados)
+               · Calcula: avg_temp_c, max_temp_c, count, alert (avg>80°C)
+               · Escribe en InfluxDB vía Line Protocol (urllib, no SDK)
                        │
                        ├──▶ [InfluxDB]  :18086  bucket=sensores
                        │     measurement: machine_stats
+                       │     tags: device_id
+                       │     fields: avg_temp_c, max_temp_c, count, alert
                        │         │
-                       │         ├──▶ [FastAPI]    :18000  ← Hito 4
-                       │         │     /machines/status
-                       │         │     /machines/{id}
-                       │         │     /alerts
-                       │         │     /model/train
-                       │         │     /model/predict
+                       │         ├──▶ [FastAPI]    :18000        ← Hito 4
+                       │         │     GET  /machines/status
+                       │         │     GET  /machines/{id}
+                       │         │     GET  /alerts
+                       │         │     POST /model/train
+                       │         │     GET  /machines/{id}/predict
+                       │         │     GET  /stats
                        │         │
-                       │         └──▶ [Streamlit]  :18501  ← Hito 4
-                       │               📡 Tiempo Real
-                       │               📈 Historial
-                       │               ⚠️  Alertas
-                       │               🗄️  Lambda Query
-                       │               🤖 IA Anomalías
+                       │         └──▶ [Streamlit]  :18501        ← Hito 4
+                       │               Tiempo Real · Historial
+                       │               Alertas · Lambda Query
+                       │               IA Anomalías (IsolationForest)
                        │
-                               │
-                               └──▶ [MinIO]  :19000/:19001   ← Cold path
-                                      ▲            DuckDB lee con hive_partitioning=true
+                       └──▶ [kafka_to_minio.py]   ← Cold path (Python, no Flink)
+                              · Consume sensors_clean (confluent_kafka)
+                              · Ventana 60s → NDJSON particionado Hive
+                              · s3://datalake/clean/year=.../month=.../day=.../hour=.../
+                              · Arranca automáticamente con init_pipeline.sh
+                              · DuckDB lee con read_json + hive_partitioning=true
                                       │
-                              [kafka_to_minio.py]
-                               · Consume sensors_clean
-                               · NDJSON particionado Hive
-                               · Arranca automáticamente con init_pipeline.sh
+                                      ▼
+                              [MinIO]  :19000/:19001  bucket=datalake
 ```
 
 ## Servicios Docker
@@ -79,49 +89,66 @@ Sistema de telemetría IoT con procesamiento en tiempo real para monitorización
 ```
 .
 ├── .devcontainer/
-│   ├── docker-compose.yml      # Todos los servicios Docker
-│   ├── Dockerfile              # Imagen del workspace
-│   ├── Dockerfile.jobmanager   # Imagen Flink con JARs y Python pre-instalados
-│   ├── devcontainer.json       # Configuración GitHub Codespaces
-│   ├── start.sh                # Levanta Docker y espera healthy (postStartCommand automático)
-│   └── init_pipeline.sh        # Inicializa topics, bucket MinIO, jobs Flink y aliases (manual)
+│   ├── docker-compose.yml          # Todos los servicios Docker
+│   ├── Dockerfile                  # Imagen del workspace (Python, dependencias)
+│   ├── Dockerfile.jobmanager       # Imagen Flink con JARs Kafka/InfluxDB y PyFlink
+│   ├── devcontainer.json           # Configuración GitHub Codespaces
+│   ├── start.sh                    # postStartCommand: levanta Docker y espera healthy
+│   └── init_pipeline.sh            # MANUAL: topics, bucket MinIO, jobs Flink, aliases
 │
 ├── src/
 │   ├── 01_ingestion/
-│   │   ├── sensor_simulator.py         # Emula máquinas con temperatura en C/F/K + hash-chain
-│   │   └── mqtt_to_redpanda_bridge.py  # Hito 1: MQTT → Redpanda con validación
+│   │   ├── sensor_simulator.py         # Simula 5 máquinas (C/F/K, fault_rate, hash-chain)
+│   │   └── mqtt_to_redpanda_bridge.py  # Hito 1: MQTT → Redpanda, validación + idempotencia
 │   ├── processing/
-│   │   └── README.md                   # Instrucciones para ejecutar jobs Flink
+│   │   ├── hash_chain.py               # Lógica SHA256 hash-chain compartida
+│   │   ├── transformations.py          # UDF to_celsius (F/K → °C)
+│   │   └── validators.py               # Validación de schema de mensajes
 │   ├── 03_storage/
-│   │   ├── kafka_to_influx.py          # Consumidor Kafka → InfluxDB (directo)
-│   │   └── kafka_to_minio.py           # Consumidor Kafka → MinIO Parquet
+│   │   ├── kafka_to_minio.py           # Cold path: sensors_clean → MinIO NDJSON (60s ventana)
+│   │   └── kafka_to_influx.py          # Alternativa directa Kafka → InfluxDB (no en uso)
 │   ├── api/
-│   │   └── main.py                     # Hito 4: FastAPI REST + IsolationForest
+│   │   ├── main.py                     # Hito 4: FastAPI REST (/machines, /alerts, /stats)
+│   │   └── anomaly_model.py            # IsolationForest: train + predict
 │   └── 05_ui/
-│       └── app.py                      # Hito 4: Streamlit + DuckDB histórico
+│       └── app.py                      # Hito 4: Streamlit + DuckDB Lambda Query hot+cold
 │
 ├── jobs/
-│   ├── flink_normalization_job.py      # Hito 2: Table API + UDF to_celsius
-│   ├── flink_analytics_job.py          # Hito 3: Tumble Window + alertas InfluxDB
-│   ├── flink_hash_verifier_job.py      # Seguridad: SHA256 hash-chain por device
-│   └── flink_to_minio_job.py           # ELIMINADO — sustituido por kafka_to_minio.py
+│   ├── flink_normalization_job.py      # Hito 2: Table API + UDF + StatementSet (2 sinks)
+│   ├── flink_analytics_job.py          # Hito 3: Tumble Window 1min + alertas → InfluxDB
+│   └── flink_hash_verifier_job.py      # Seguridad: DataStream API + hash-chain SHA256
 │
 ├── notebooks/
-│   └── 01_exploracion_datos.ipynb      # Exploración con Plotly + InfluxDB + DuckDB
+│   ├── 01_exploracion_datos.ipynb      # Hot path, cold path, Lambda Query, IsolationForest
+│   ├── 02_analisis_calidad.ipynb       # DLQ, hash-chain, completitud, distribución unidades
+│   └── 03_bases_datos_calculos.ipynb   # Stats avanzadas: Z-score, tendencia, correlación
 │
 ├── config/
-│   ├── mosquitto.conf                  # Configuración MQTT broker
-│   ├── grafana/
-│   │   └── provisioning/               # Datasource e dashboard pre-provisionados
-│   └── requirements.txt               # Dependencias Python
+│   ├── mosquitto.conf                  # Broker MQTT: puerto 1883, acceso anónimo
+│   ├── requirements.txt                # Dependencias Python del workspace
+│   └── grafana/
+│       └── provisioning/
+│           ├── datasources/
+│           │   └── datasources.yml     # InfluxDB (Flux) + Infinity (HTTP genérico)
+│           └── dashboards/
+│               ├── provider.yml
+│               └── redpanda.json       # Dashboard Redpanda/Kafka (brokers, topics, watermarks)
 │
 ├── tests/
-│   ├── test_connectivity.sh            # Smoke test de servicios (bash)
-│   └── test_flow.py                    # Test end-to-end del pipeline
+│   ├── test_connectivity.sh            # Smoke test: ¿responden todos los servicios?
+│   ├── test_flow.py                    # Test E2E: publica mensaje y verifica en cada capa
+│   ├── test_processing.py              # Tests unitarios de transformations y validators
+│   ├── test_databases.py               # Verifica InfluxDB, MinIO y DuckDB query
+│   └── verify_pipeline.sh              # Diagnóstico completo del pipeline en ejecución
 │
 └── docs/
-    ├── 00_smoke_test_checklist.md      # Checklist de validación del entorno
-    └── 01_practica.md                  # Guía de la práctica PAC DES
+    ├── 00_smoke_test_checklist.md      # Checklist de validación paso a paso
+    ├── 01_practica.md                  # Guía de la práctica PAC DES
+    ├── 02_ficha_tecnica.md             # Ficha técnica del proyecto
+    ├── 03_debug_guide.md               # Guía de depuración
+    ├── 04_preguntas_teoria.md          # Preguntas y respuestas de teoría (examen)
+    ├── 05_ejercicios_practicos.md      # Ejercicios prácticos
+    └── 05_grafana_endpoints.md         # Endpoints Redpanda/Flink/FastAPI para Grafana
 ```
 
 ## Inicio rápido

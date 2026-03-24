@@ -59,13 +59,20 @@ KAFKA_DLQ      = os.getenv("KAFKA_DLQ",      "sensors_invalid")
 
 GENESIS_HASH = "0" * 64
 
-# Debe coincidir exactamente con hash_chain.py y sensor_simulator.py
-HASH_FIELDS = {"device_id", "temperature", "unit", "ts", "_ingested_at"}
+# Campos añadidos por el bridge DESPUÉS de que el simulador firmó el mensaje.
+# Deben excluirse del hash para que la verificación coincida con la firma original.
+BRIDGE_ADDED_FIELDS = {"_ingested_at", "_mqtt_topic", "_mqtt_qos"}
+EXCLUDE_FROM_HASH   = {"hash", "prev_hash"} | BRIDGE_ADDED_FIELDS
 
 
 def compute_hash(payload: dict, prev_hash: str) -> str:
-    """Replica el cálculo del simulador: SHA256(campos_fijos + prev_hash)."""
-    content = {k: payload[k] for k in HASH_FIELDS if k in payload}
+    """Replica el cálculo del simulador: SHA256(campos_originales + prev_hash).
+
+    El simulador firma con todos los campos excepto 'hash' y 'prev_hash'.
+    El bridge añade _ingested_at/_mqtt_topic/_mqtt_qos después de la firma,
+    por lo que también se excluyen aquí para que el resultado sea idéntico.
+    """
+    content = {k: v for k, v in payload.items() if k not in EXCLUDE_FROM_HASH}
     raw = json.dumps(content, sort_keys=True) + prev_hash
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
