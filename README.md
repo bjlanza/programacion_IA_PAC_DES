@@ -209,7 +209,10 @@ Esto:
 - Arranca el **rustfs-writer** (cold path Python)
 - Prepara las **herramientas S3** opcionales: AWS CLI con la función `s3` y el cliente web en el puerto 19002
   (si alguna falla, solo avisa)
-- Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, ...)
+- Añade **aliases de desarrollo** al shell (`sim`, `bridge`, `api`, `ui`, `nb`, `flink-list`, `dps`, `dc`, ...)
+
+> Lánzalo con `source` (no con `bash`) para que los aliases funcionen ya en esa terminal.
+> Si lo lanzaste con `bash`, ejecuta `source ~/.bashrc` o abre una terminal nueva.
 
 ### 3. Arrancar el pipeline completo
 
@@ -256,13 +259,17 @@ Ejecuta los scripts en este orden:
 
 ```bash
 # 1. Infraestructura: ¿responden todos los servicios? (justo tras init_pipeline.sh)
+dps                                # estado de los contenedores (docker compose ps)
 bash tests/test_connectivity.sh
+s3web status                       # cliente web S3 en :19002 → "HTTP 200"
 
 # 2. Conexiones E2E: ¿funciona cada servicio por separado?
 python tests/test_flow.py
 
 # 3. Datos reales: ¿fluyen datos por el pipeline? (tras ~2 min con bridge + sim corriendo)
 bash tests/verify_pipeline.sh      # alias: verify
+#    Ejecútalo dos veces con 1 min de diferencia: sensors_verified debe seguir creciendo
+#    (si se queda fijo mientras sensors_raw crece, la cadena hash está rota → ver Resolución de problemas)
 
 # 4. Diagnóstico detallado de BBDDs y Grafana (si hay dudas)
 python tests/test_databases.py     # alias: verify-db
